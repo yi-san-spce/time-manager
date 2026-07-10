@@ -105,4 +105,42 @@ describe('layoutTimelineEntries', () => {
     )
     expect(custom[0].isCompact).toBe(true)
   })
+
+  it('reserves lanes for visually expanded short records so they do not overlap', () => {
+    const range = dayRange()
+    const layouts = layoutTimelineEntries(
+      [
+        entry('first', range.rangeStart, range.rangeStart + MINUTE),
+        entry('second', range.rangeStart + 2 * MINUTE, range.rangeStart + 3 * MINUTE)
+      ],
+      range,
+      { minimumVisualDurationMs: 10 * MINUTE }
+    )
+
+    expect(layouts[0]).toMatchObject({
+      durationMs: MINUTE,
+      visualDurationMs: 10 * MINUTE,
+      visualEndTime: range.rangeStart + 10 * MINUTE,
+      lane: 0,
+      laneCount: 2
+    })
+    expect(layouts[1]).toMatchObject({ lane: 1, laneCount: 2 })
+    expect(layouts[0].height).toBeCloseTo((10 / (24 * 60)) * 100)
+  })
+
+  it('clips a visually expanded late-night block at the end of the day', () => {
+    const range = dayRange()
+    const layouts = layoutTimelineEntries(
+      [entry('late', range.rangeEnd - MINUTE, range.rangeEnd)],
+      range,
+      { minimumVisualDurationMs: 10 * MINUTE }
+    )
+
+    expect(layouts[0]).toMatchObject({
+      visibleEndTime: range.rangeEnd,
+      visualEndTime: range.rangeEnd,
+      visualDurationMs: MINUTE
+    })
+    expect(layouts[0].height).toBeCloseTo(100 / (24 * 60))
+  })
 })

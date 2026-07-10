@@ -21,6 +21,12 @@ export interface TimelineLayoutOptions {
    * treatment. Defaults to five minutes.
    */
   compactThresholdMs?: number
+  /**
+   * Minimum rendered duration for a block. The real start/end timestamps stay
+   * unchanged, but lane allocation also uses this visual interval so adjacent
+   * short records do not paint on top of one another. Defaults to zero.
+   */
+  minimumVisualDurationMs?: number
 }
 
 /** Five minutes keeps very short automatic tracking segments readable. */
@@ -34,9 +40,13 @@ export interface TimelineLayoutItem<T extends TimelineEntryLike> {
   visibleEndTime: number
   /** The length of the visible (possibly clipped) interval. */
   durationMs: number
+  /** End of the interval actually reserved for painting this block. */
+  visualEndTime: number
+  /** Rendered duration after applying the optional visual minimum. */
+  visualDurationMs: number
   /** Top position as a percentage of the visible day, from 0 through 100. */
   top: number
-  /** Height as a percentage of the visible day, from 0 through 100. */
+  /** Rendered height as a percentage of the visible day, from 0 through 100. */
   height: number
   /** Zero-based column within its overlap group. */
   lane: number
@@ -51,6 +61,8 @@ interface ClippedEntry<T extends TimelineEntryLike> {
   visibleStartTime: number
   visibleEndTime: number
   durationMs: number
+  visualEndTime: number
+  visualDurationMs: number
   originalIndex: number
 }
 
@@ -88,6 +100,10 @@ export function layoutTimelineEntries<T extends TimelineEntryLike>(
   const compactThresholdMs = Number.isFinite(requestedCompactThreshold)
     ? Math.max(0, requestedCompactThreshold)
     : DEFAULT_COMPACT_THRESHOLD_MS
+  const requestedMinimumVisualDuration = options.minimumVisualDurationMs ?? 0
+  const minimumVisualDurationMs = Number.isFinite(requestedMinimumVisualDuration)
+    ? Math.max(0, requestedMinimumVisualDuration)
+    : 0
   const dayDurationMs = rangeEnd - rangeStart
   const clipped = entries
     .map((entry, originalIndex): ClippedEntry<T> | null => {
@@ -101,11 +117,19 @@ export function layoutTimelineEntries<T extends TimelineEntryLike>(
         return null
       }
 
+      const durationMs = visibleEndTime - visibleStartTime
+      const visualDurationMs = Math.min(
+        rangeEnd - visibleStartTime,
+        Math.max(durationMs, minimumVisualDurationMs)
+      )
+
       return {
         entry,
         visibleStartTime,
         visibleEndTime,
-        durationMs: visibleEndTime - visibleStartTime,
+        durationMs,
+        visualEndTime: visibleStartTime + visualDurationMs,
+        visualDurationMs,
         originalIndex
       }
     })
@@ -116,7 +140,7 @@ export function layoutTimelineEntries<T extends TimelineEntryLike>(
   let componentStart = 0
 
   while (componentStart < clipped.length) {
-    let componentEnd = clipped[componentStart].visibleEndTime
+    let componentEnd = clipped[componentStart].visualEndTime
     let componentEndIndex = componentStart + 1
 
     // A component extends through entries which overlap it directly or through
@@ -125,7 +149,7 @@ export function layoutTimelineEntries<T extends TimelineEntryLike>(
       componentEndIndex < clipped.length &&
       clipped[componentEndIndex].visibleStartTime < componentEnd
     ) {
-      componentEnd = Math.max(componentEnd, clipped[componentEndIndex].visibleEndTime)
+      componentEnd = Math.max(componentEnd, clipped[componentEndIndex].visualEndTime)
       componentEndIndex += 1
     }
 
@@ -137,9 +161,9 @@ export function layoutTimelineEntries<T extends TimelineEntryLike>(
       let lane = laneEnds.findIndex((laneEnd) => laneEnd <= item.visibleStartTime)
       if (lane === -1) {
         lane = laneEnds.length
-        laneEnds.push(item.visibleEndTime)
+        laneEnds.push(item.visualEndTime)
       } else {
-        laneEnds[lane] = item.visibleEndTime
+        laneEnds[lane] = item.visualEndTime
       }
 
       componentLayouts.push({
@@ -147,8 +171,10 @@ export function layoutTimelineEntries<T extends TimelineEntryLike>(
         visibleStartTime: item.visibleStartTime,
         visibleEndTime: item.visibleEndTime,
         durationMs: item.durationMs,
+        visualEndTime: item.visualEndTime,
+        visualDurationMs: item.visualDurationMs,
         top: ((item.visibleStartTime - rangeStart) / dayDurationMs) * 100,
-        height: (item.durationMs / dayDurationMs) * 100,
+        height: (item.visualDurationMs / dayDurationMs) * 100,
         lane,
         laneCount: 0,
         isCompact: item.durationMs <= compactThresholdMs

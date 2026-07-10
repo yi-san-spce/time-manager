@@ -34,6 +34,7 @@ type ViewMode = 'summary' | 'timeline'
 const HOURS = Array.from({ length: 25 }, (_, hour) => hour)
 const TIMELINE_HOUR_HEIGHT = 76
 const TIMELINE_COMPACT_THRESHOLD_MS = 15 * 60 * 1000
+const TIMELINE_MINIMUM_VISUAL_DURATION_MS = 10 * 60 * 1000
 
 function startOfLocalDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate())
@@ -151,7 +152,11 @@ export function TrackingPage(): React.JSX.Element {
     [tasks]
   )
   const timelineItems = useMemo(
-    () => layoutTimelineEntries(entries ?? [], range, { compactThresholdMs: TIMELINE_COMPACT_THRESHOLD_MS }),
+    () =>
+      layoutTimelineEntries(entries ?? [], range, {
+        compactThresholdMs: TIMELINE_COMPACT_THRESHOLD_MS,
+        minimumVisualDurationMs: TIMELINE_MINIMUM_VISUAL_DURATION_MS
+      }),
     [entries, range.rangeEnd, range.rangeStart]
   )
   const activeTimelineItem = timelineItems.find((item) => item.entry.id === activeEntryId) ?? null
@@ -303,7 +308,7 @@ export function TrackingPage(): React.JSX.Element {
                 const width = 100 / item.laneCount
                 const blockStyle = {
                   top: `${item.top}%`,
-                  height: `${Math.max(item.height, item.isCompact ? 0.75 : 1.25)}%`,
+                  height: `${item.height}%`,
                   left: `calc(${item.lane * width}% + 4px)`,
                   width: `calc(${width}% - 8px)`,
                   '--app-color': colorForApp(item.entry.appName)
