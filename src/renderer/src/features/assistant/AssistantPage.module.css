@@ -1,0 +1,116 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  height: calc(100vh - 120px);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: var(--space-4);
+}
+
+/* 左侧对话历史侧栏 */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: var(--space-3);
+  gap: var(--space-2);
+}
+
+.newBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 10px 14px;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: #fff;
+  background: var(--color-accent-gradient);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: var(--transition);
+}
+.newBtn:hover {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+}
+
+.list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.listEmpty {
+  margin: auto;
+  padding: var(--space-4);
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  transition: var(--transition);
+}
+.item:hover {
+  background: var(--glass-surface-bg-strong);
+  color: var(--color-text-primary);
+}
+.itemActive {
+  background: var(--color-accent-soft);
+  color: var(--color-text-primary);
+}
+.itemActive:hover {
+  background: var(--color-accent-soft);
+}
+
+.itemIcon {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.itemText {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 删除按钮：默认隐藏，hover 行时浮现 */
+.itemDel {
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.item:hover .itemDel,
+.itemActive .itemDel {
+  opacity: 1;
+}
+
+/* 右侧聊天区 */
+.chat {
+  min-height: 0;
+  padding: var(--space-3);
+  display: flex;
+}

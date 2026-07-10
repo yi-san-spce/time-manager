@@ -1,0 +1,59 @@
+/* 杂项组件 —— Fab / Popover */
+
+.fab {
+  position: fixed;
+  right: var(--space-8);
+  bottom: var(--space-8);
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 14px 20px;
+  font-family: inherit;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: #fff;
+  background: var(--color-accent-gradient);
+  border: none;
+  border-radius: var(--radius-full);
+  box-shadow: 0 10px 30px var(--glass-shadow);
+  cursor: pointer;
+  overflow: hidden;
+  transition: var(--transition);
+}
+
+.fab:hover {
+  transform: var(--lift) scale(1.02);
+  box-shadow: 0 16px 40px var(--glass-shadow);
+}
+
+.fab::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent, var(--shimmer-color), transparent);
+  transform: translateX(-130%) skewX(-18deg);
+  pointer-events: none;
+  opacity: 0;
+}
+.fab:hover::after {
+  opacity: 1;
+  animation: shimmer 0.9s var(--ease);
+}
+
+.popoverWrap {
+  position: fixed;
+  z-index: 200;
+}
+
+.popover {
+  min-width: 200px;
+  max-height: 320px;
+  overflow: auto;
+  padding: var(--space-2);
+  background: var(--glass-menu-bg);
+  backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate));
+  box-shadow: 0 16px 44px var(--glass-shadow);
+  animation: modal-in 0.16s var(--ease);
+}

@@ -1,0 +1,210 @@
+/* ============================================================
+   设计令牌（Design Tokens）
+   —— 权威视觉规格见 ui提示词/ui界面提示词.md「全局动效与视觉微调」节
+   分 :root（尺寸/字号/动效，明暗共用）与 [data-theme] 两套（颜色/玻璃）。
+   ============================================================ */
+
+:root {
+  --font-sans: 'Segoe UI', system-ui, -apple-system, 'Microsoft YaHei', sans-serif;
+
+  /* 间距 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+
+  /* 圆角 */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-full: 999px;
+
+  /* 字号 */
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-md: 16px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+  --text-2xl: 28px;
+
+  /* 字重 */
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* 玻璃模糊参数 */
+  --glass-blur: 24px;
+  --glass-blur-strong: 40px;
+  --glass-saturate: 1.4;
+
+  /* 动效基准 */
+  --ease: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --transition-fast: all 0.15s var(--ease);
+  --transition: all 0.25s var(--ease);
+  --lift: translateY(-3px);
+
+  /* 阶段色板（各功能区高亮色，明暗共用色相）：计划=琥珀 追踪=青薄荷 复盘=金 */
+  --stage-plan: #f5a623;
+  --stage-plan-soft: rgba(245, 166, 35, 0.16);
+  --stage-track: #2fd6c4;
+  --stage-track-soft: rgba(47, 214, 196, 0.16);
+  --stage-review: #e8b64c;
+  --stage-review-soft: rgba(232, 182, 76, 0.16);
+
+  /* 语义色（明暗共用色相，透明度在具体处理） */
+  --color-success: #37c26b;
+  --color-warning: #e8a13c;
+  --color-info: #4a8dff;
+}
+
+:root[data-theme='light'] {
+  --color-bg-base: #eef1f6;
+  --color-bg-gradient:
+    radial-gradient(circle at 18% -8%, #dbe6ff 0%, transparent 52%),
+    radial-gradient(circle at 88% 8%, #ffe0f0 0%, transparent 44%), #eef1f6;
+  --color-text-primary: #1b1f27;
+  --color-text-secondary: #565f6f;
+  --color-text-muted: #8a93a6;
+  --color-accent: #3b6df0;
+  --color-accent-soft: rgba(59, 109, 240, 0.14);
+  --color-accent-gradient: linear-gradient(135deg, #4a7dff 0%, #7a5cff 100%);
+  --color-danger: #d64545;
+  --color-danger-soft: rgba(214, 69, 69, 0.12);
+
+  /* 玻璃：浅色透明度更高（更实），描边偏暗 */
+  --glass-surface-bg: rgba(255, 255, 255, 0.55);
+  --glass-surface-bg-strong: rgba(255, 255, 255, 0.7);
+  --glass-surface-border: rgba(0, 0, 0, 0.06);
+  --glass-highlight: rgba(255, 255, 255, 0.9);
+  --glass-shadow: rgba(31, 41, 61, 0.12);
+  --glass-hover-bg: rgba(255, 255, 255, 0.72);
+
+  /* 控件专用 */
+  --field-bg: rgba(255, 255, 255, 0.6);
+  --field-border: rgba(0, 0, 0, 0.1);
+  --shimmer-color: rgba(255, 255, 255, 0.55);
+  /* 覆盖型菜单（下拉/弹层）需近乎不透明，避免下方文字透出 */
+  --glass-menu-bg: rgba(248, 250, 253, 0.94);
+}
+
+:root[data-theme='dark'] {
+  --color-bg-base: #0f1218;
+  --color-bg-gradient:
+    radial-gradient(circle at 18% -8%, #1c2946 0%, transparent 52%),
+    radial-gradient(circle at 88% 8%, #3a1d33 0%, transparent 44%), #0f1218;
+  --color-text-primary: #eef1f6;
+  --color-text-secondary: #a3acc2;
+  --color-text-muted: #6c7691;
+  --color-accent: #7aa2ff;
+  --color-accent-soft: rgba(122, 162, 255, 0.16);
+  --color-accent-gradient: linear-gradient(135deg, #6d8bff 0%, #b06cff 100%);
+  --color-danger: #ff7a7a;
+  --color-danger-soft: rgba(255, 122, 122, 0.14);
+
+  /* 玻璃：深色透明度更低（更透），描边偏亮 */
+  --glass-surface-bg: rgba(255, 255, 255, 0.05);
+  --glass-surface-bg-strong: rgba(255, 255, 255, 0.09);
+  --glass-surface-border: rgba(255, 255, 255, 0.1);
+  --glass-highlight: rgba(255, 255, 255, 0.16);
+  --glass-shadow: rgba(0, 0, 0, 0.45);
+  --glass-hover-bg: rgba(255, 255, 255, 0.1);
+
+  --field-bg: rgba(255, 255, 255, 0.05);
+  --field-border: rgba(255, 255, 255, 0.12);
+  --shimmer-color: rgba(255, 255, 255, 0.22);
+  /* 覆盖型菜单（下拉/弹层）需近乎不透明，避免下方文字透出 */
+  --glass-menu-bg: rgba(28, 32, 44, 0.95);
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  color: var(--color-text-primary);
+  background: var(--color-bg-base);
+  transition: color 0.2s ease;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* 自定义滚动条，融入玻璃质感 */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--glass-surface-border);
+  border-radius: var(--radius-full);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+h1, h2, h3, h4 {
+  font-weight: var(--weight-semibold);
+  line-height: 1.25;
+}
+
+/* 扫光动效：给按钮/卡片一层 45° 渐变高光划过。
+   用法：元素 position:relative + overflow:hidden，hover 时子元素 .shimmer 触发。 */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-120%) skewX(-18deg);
+  }
+  100% {
+    transform: translateX(220%) skewX(-18deg);
+  }
+}
+
+/* 入场：从上滑入淡入（追踪时间线卡片等用） */
+@keyframes slide-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-dot {
+  0%, 80%, 100% {
+    opacity: 0.25;
+    transform: scale(0.7);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

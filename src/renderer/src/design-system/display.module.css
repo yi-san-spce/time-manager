@@ -1,0 +1,147 @@
+/* 展示类组件 —— Badge / TagChip / ProgressBar / Segmented */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+  line-height: 1.6;
+}
+
+.badge-neutral {
+  background: var(--glass-surface-bg-strong);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--glass-surface-border);
+}
+.badge-accent {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+.badge-success {
+  background: rgba(55, 194, 107, 0.16);
+  color: var(--color-success);
+}
+.badge-warning {
+  background: rgba(232, 161, 60, 0.16);
+  color: var(--color-warning);
+}
+.badge-danger {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+.badge-info {
+  background: rgba(74, 141, 255, 0.16);
+  color: var(--color-info);
+}
+
+/* 标签胶囊，可带颜色点 + 删除按钮 */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  font-size: var(--text-xs);
+  border-radius: var(--radius-full);
+  background: var(--glass-surface-bg-strong);
+  border: 1px solid var(--glass-surface-border);
+  color: var(--color-text-secondary);
+  transition: var(--transition);
+}
+
+.chip.clickable {
+  cursor: pointer;
+}
+.chip.clickable:hover {
+  color: var(--color-text-primary);
+  border-color: var(--color-text-muted);
+}
+
+.chipDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.chipRemove {
+  display: inline-flex;
+  border: none;
+  background: none;
+  padding: 0;
+  margin-left: 2px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.chipRemove:hover {
+  color: var(--color-danger);
+}
+
+/* 进度条，填充色随完成度渐变 */
+.progressTrack {
+  width: 100%;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--glass-surface-border);
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--color-accent-gradient);
+  transition: width 0.4s var(--ease);
+}
+
+.progressRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.progressLabel {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+/* 段控（视图切换） */
+.segmented {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  border-radius: var(--radius-md);
+  background: var(--glass-surface-bg);
+  border: 1px solid var(--glass-surface-border);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+}
+
+.segment {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: var(--transition);
+  white-space: nowrap;
+}
+
+.segment:hover {
+  color: var(--color-text-primary);
+}
+
+.segment.active {
+  background: var(--color-accent-gradient);
+  color: #fff;
+  box-shadow: 0 4px 12px var(--glass-shadow);
+}

@@ -1,0 +1,46 @@
+node_modules
+dist
+out
+release
+*.log
+.DS_Store
+.env
+.env.*
+.npmrc
+
+# 本地数据库与用户数据，不应提交
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+*.sqlite
+*.db
+
+# 本地 AI 工具、测试与构建辅助文件
+.claude/
+.codex/
+.agents/
+coverage/
+test-results/
+playwright-report/
+*.tsbuildinfo
+.tmp-*/
+
+# 仅供本地调研/参考的素材；公开仓库保留可复现源码与面试说明
+/参考/
+/ui提示词/
+/说明文档/
+/问题报告.md
+/屏幕截图*.jpg
+
+# 编辑器
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea
+
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

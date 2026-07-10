@@ -1,0 +1,203 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background: var(--glass-surface-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-surface-border);
+  border-radius: var(--radius-lg);
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px 8px 14px;
+  border-bottom: 1px solid var(--glass-surface-border);
+  -webkit-app-region: drag;
+  user-select: none;
+}
+.barTitle {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-secondary);
+  letter-spacing: 0.02em;
+}
+.noDrag {
+  -webkit-app-region: no-drag;
+}
+
+.cards {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2);
+}
+
+.card {
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-muted);
+  text-transform: none;
+}
+.tomato {
+  font-size: 13px;
+  line-height: 1;
+}
+.saveHint {
+  margin-left: auto;
+  font-weight: var(--weight-regular);
+  color: var(--color-text-muted);
+  opacity: 0.7;
+}
+
+.muted {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.scheduleTitle {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-primary);
+}
+.scheduleTime {
+  margin-top: 2px;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.taskList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.taskItem {
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+  padding-left: 14px;
+  position: relative;
+}
+.taskItem::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent);
+}
+.taskItem[data-done='true'] {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}
+.taskItem[data-done='true']::before {
+  background: var(--color-text-muted);
+}
+
+/* 番茄环 */
+.pomo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ring {
+  position: relative;
+  width: 96px;
+  height: 96px;
+}
+.ringSvg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+.ringTrack {
+  fill: none;
+  stroke: var(--glass-surface-border);
+  stroke-width: 7;
+}
+.ringFill {
+  fill: none;
+  stroke-width: 7;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.3s ease;
+}
+.ringCenter {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+.ringTime {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.ringPhase {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+.pomoLink {
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  text-align: center;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pomoControls {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* 随心记 */
+.noteCard {
+  flex: 1;
+  min-height: 120px;
+}
+.noteArea {
+  flex: 1;
+  width: 100%;
+  min-height: 90px;
+  resize: none;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-text-primary);
+  background: var(--field-bg);
+  border: 1px solid var(--field-border);
+  border-radius: var(--radius-sm);
+  outline: none;
+  transition: var(--transition);
+}
+.noteArea:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}

@@ -1,0 +1,96 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.totalRow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.blockLabel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-secondary);
+}
+
+.targetList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.targetRow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  isolation: isolate;
+  border: 1px solid var(--glass-surface-border);
+}
+
+.targetBar {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--stage-track-soft);
+  transition: width 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.targetName {
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.targetActions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.targetValue {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.summaryBox {
+  padding: var(--space-4);
+  line-height: 1.6;
+  background: linear-gradient(135deg, var(--stage-review-soft) 0%, transparent 70%);
+}
+
+.summaryHint {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.summaryError {
+  font-size: var(--text-sm);
+  color: var(--color-danger);
+}

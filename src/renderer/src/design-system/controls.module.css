@@ -1,0 +1,167 @@
+/* 共享表单控件样式 —— TextField / Textarea / Select / Checkbox / IconButton */
+
+.control {
+  width: 100%;
+  padding: 9px 12px;
+  font-family: inherit;
+  font-size: var(--text-base);
+  color: var(--color-text-primary);
+  background: var(--field-bg);
+  border: 1px solid var(--field-border);
+  border-radius: var(--radius-sm);
+  outline: none;
+  transition: var(--transition);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+}
+
+.control::placeholder {
+  color: var(--color-text-muted);
+}
+
+.control:hover:not(:disabled):not(:focus) {
+  border-color: var(--color-text-muted);
+}
+
+/* 聚焦光晕 —— 品牌色描边 + 外发光 */
+.control:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+
+.control:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 84px;
+  line-height: 1.5;
+}
+
+.select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238a93a6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 34px;
+  cursor: pointer;
+}
+
+/* 字段容器：label + 控件 + 错误 */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-secondary);
+}
+
+.error {
+  font-size: var(--text-xs);
+  color: var(--color-danger);
+}
+
+/* 图标按钮 */
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.iconBtn:hover:not(:disabled) {
+  background: var(--glass-hover-bg);
+  color: var(--color-text-primary);
+  transform: var(--lift);
+}
+
+.iconBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.iconBtn.danger:hover:not(:disabled) {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.iconBtn.sm {
+  width: 28px;
+  height: 28px;
+}
+
+/* 复选框 —— 自定义方形玻璃勾选，勾选时弹性缩放 */
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border: 1.5px solid var(--field-border);
+  border-radius: 6px;
+  background: var(--field-bg);
+  color: #fff;
+  transition: all 0.2s var(--ease-bounce);
+}
+
+.box svg {
+  opacity: 0;
+  transform: scale(0.4);
+  transition: all 0.2s var(--ease-bounce);
+}
+
+.checkbox input:checked + .box {
+  background: var(--color-accent-gradient);
+  border-color: transparent;
+  transform: scale(1.08);
+}
+
+.checkbox input:checked + .box svg {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.checkbox input:focus-visible + .box {
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+
+.boxSm {
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+}
+
+.checkLabel {
+  font-size: var(--text-base);
+  color: var(--color-text-primary);
+}

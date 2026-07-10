@@ -1,0 +1,49 @@
+.statusText {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.reportCard {
+  padding: var(--space-5) var(--space-6);
+  border-left: 3px solid var(--stage-review);
+}
+
+.reportHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.reportTitle {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+}
+
+.section {
+  margin-top: var(--space-4);
+}
+
+.sectionLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-secondary);
+  margin-bottom: 6px;
+}
+
+.aiSummary {
+  margin-top: 4px;
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  white-space: pre-wrap;
+  line-height: 1.6;
+  color: var(--color-text-primary);
+  background: linear-gradient(135deg, var(--stage-review-soft) 0%, transparent 70%);
+  border: 1px solid var(--glass-surface-border);
+}
