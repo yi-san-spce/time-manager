@@ -1,11 +1,20 @@
 {
   "name": "time-manager",
   "version": "0.1.0",
-  "description": "AI 驱动的桌面时间管理器 —— 日程规划、任务追踪、活跃窗口统计与AI报告生成",
+  "description": "AI 驱动的 Windows 桌面时间管理器：日程规划、任务专注、自动时间追踪与复盘报告",
   "main": "./out/main/index.js",
+  "productName": "时间管理器",
   "author": "",
   "license": "MIT",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yi-san-spce/time-manager.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yi-san-spce/time-manager/issues"
+  },
+  "homepage": "https://github.com/yi-san-spce/time-manager#readme",
   "engines": {
     "node": "^20.19.0 || ^22.12.0 || >=24.0.0"
   },
@@ -18,6 +27,12 @@
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "lint": "eslint .",
     "test": "vitest run",
+    "generate:icon": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/generate-icon.ps1",
+    "clean:package": "node scripts/clean-package.mjs",
+    "package:dir": "npm run clean:package && npm run generate:icon && npm run build && electron-builder --win dir --x64",
+    "package:zip": "npm run clean:package && npm run generate:icon && npm run build && electron-builder --win zip --x64",
+    "package:win": "npm run clean:package && npm run generate:icon && npm run build && electron-builder --win nsis --x64",
+    "package": "npm run package:zip",
     "postinstall": "electron-rebuild -w better-sqlite3"
   },
   "dependencies": {
@@ -48,6 +63,7 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^5.0.4",
     "electron": "^42.5.2",
+    "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
     "eslint": "^9.15.0",
     "playwright-core": "^1.61.1",
@@ -55,5 +71,44 @@
     "typescript-eslint": "^8.29.1",
     "vite": "^7.3.6",
     "vitest": "^4.1.9"
+  },
+  "build": {
+    "appId": "com.timemanager.app",
+    "productName": "时间管理器",
+    "executableName": "TimeManager",
+    "directories": {
+      "buildResources": "build",
+      "output": "release/${version}"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**",
+      "node_modules/get-windows/**"
+    ],
+    "npmRebuild": false,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "TimeManager-${version}-win-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "时间管理器",
+      "artifactName": "TimeManager-${version}-Setup.${ext}"
+    }
   }
 }

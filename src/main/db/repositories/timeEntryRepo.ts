@@ -13,6 +13,7 @@ import { getSafeExternalHost } from '../../services/safeExternalHost'
 interface TimeEntryRow {
   id: string
   task_id: string | null
+  schedule_id: string | null
   start_time: number
   end_time: number
   source: string
@@ -28,6 +29,7 @@ function mapRow(row: TimeEntryRow): TimeEntry {
   return {
     id: row.id,
     taskId: row.task_id,
+    scheduleId: row.schedule_id ?? null,
     startTime: row.start_time,
     endTime: row.end_time,
     source: row.source as TimeEntrySource,
@@ -193,15 +195,27 @@ export function createAutoTimeEntry(input: {
   appName: string | null
   windowTitle: string | null
   domain?: string | null
+  scheduleId?: string | null
 }): TimeEntry {
   const db = getDb()
   const id = randomUUID()
   const now = Date.now()
 
   db.prepare(
-    `INSERT INTO time_entry (id, task_id, start_time, end_time, source, app_name, window_title, domain, note, created_at, updated_at)
-     VALUES (?, NULL, ?, ?, 'auto', ?, ?, ?, NULL, ?, ?)`
-  ).run(id, input.startTime, input.endTime, input.appName, input.windowTitle, input.domain ?? null, now, now)
+    `INSERT INTO time_entry
+       (id, task_id, schedule_id, start_time, end_time, source, app_name, window_title, domain, note, created_at, updated_at)
+     VALUES (?, NULL, ?, ?, ?, 'auto', ?, ?, ?, NULL, ?, ?)`
+  ).run(
+    id,
+    input.scheduleId ?? null,
+    input.startTime,
+    input.endTime,
+    input.appName,
+    input.windowTitle,
+    input.domain ?? null,
+    now,
+    now
+  )
 
   return getTimeEntry(id) as TimeEntry
 }
@@ -212,9 +226,19 @@ export function createManualTimeEntry(input: CreateManualTimeEntryInput): TimeEn
   const now = Date.now()
 
   db.prepare(
-    `INSERT INTO time_entry (id, task_id, start_time, end_time, source, app_name, window_title, note, created_at, updated_at)
-     VALUES (?, ?, ?, ?, 'manual', NULL, NULL, ?, ?, ?)`
-  ).run(id, input.taskId ?? null, input.startTime, input.endTime, input.note ?? null, now, now)
+    `INSERT INTO time_entry
+       (id, task_id, schedule_id, start_time, end_time, source, app_name, window_title, note, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, 'manual', NULL, NULL, ?, ?, ?)`
+  ).run(
+    id,
+    input.taskId ?? null,
+    input.scheduleId ?? null,
+    input.startTime,
+    input.endTime,
+    input.note ?? null,
+    now,
+    now
+  )
 
   return getTimeEntry(id) as TimeEntry
 }
@@ -228,14 +252,17 @@ export function updateTimeEntry(input: UpdateTimeEntryInput): TimeEntry {
 
   const next = {
     taskId: input.taskId !== undefined ? input.taskId : existing.taskId,
+    scheduleId: input.scheduleId !== undefined ? input.scheduleId : existing.scheduleId,
     startTime: input.startTime ?? existing.startTime,
     endTime: input.endTime ?? existing.endTime,
     note: input.note !== undefined ? input.note : existing.note
   }
 
   db.prepare(
-    `UPDATE time_entry SET task_id = ?, start_time = ?, end_time = ?, note = ?, updated_at = ? WHERE id = ?`
-  ).run(next.taskId, next.startTime, next.endTime, next.note, Date.now(), input.id)
+    `UPDATE time_entry
+       SET task_id = ?, schedule_id = ?, start_time = ?, end_time = ?, note = ?, updated_at = ?
+     WHERE id = ?`
+  ).run(next.taskId, next.scheduleId, next.startTime, next.endTime, next.note, Date.now(), input.id)
 
   return getTimeEntry(input.id) as TimeEntry
 }
@@ -267,6 +294,8 @@ export function mergeTimeEntries(input: MergeTimeEntriesInput): TimeEntry {
   const startTime = Math.min(...entries.map((e) => e.startTime))
   const endTime = Math.max(...entries.map((e) => e.endTime))
   const taskId = input.taskId !== undefined ? input.taskId : entries.find((e) => e.taskId)?.taskId ?? null
+  const scheduleId =
+    input.scheduleId !== undefined ? input.scheduleId : entries.find((e) => e.scheduleId)?.scheduleId ?? null
 
   const mergeTxn = db.transaction(() => {
     for (const id of input.ids) {
@@ -275,9 +304,10 @@ export function mergeTimeEntries(input: MergeTimeEntriesInput): TimeEntry {
     const id = randomUUID()
     const now = Date.now()
     db.prepare(
-      `INSERT INTO time_entry (id, task_id, start_time, end_time, source, app_name, window_title, note, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 'manual', NULL, NULL, NULL, ?, ?)`
-    ).run(id, taskId, startTime, endTime, now, now)
+      `INSERT INTO time_entry
+         (id, task_id, schedule_id, start_time, end_time, source, app_name, window_title, note, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 'manual', NULL, NULL, NULL, ?, ?)`
+    ).run(id, taskId, scheduleId, startTime, endTime, now, now)
     return id
   })
 

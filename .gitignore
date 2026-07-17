@@ -23,6 +23,11 @@ release
 coverage/
 test-results/
 playwright-report/
+.playwright-cli/
+.cache/
+.electron/
+.vite/
+output/
 *.tsbuildinfo
 .tmp-*/
 

@@ -12,6 +12,7 @@ import * as m010 from './010_seed_categories'
 import * as m011 from './011_time_entry_url'
 import * as m012 from './012_activity_note'
 import * as m013 from './013_agent_thinking'
+import * as m014 from './014_widget_task_context'
 
 interface Migration {
   version: number
@@ -31,7 +32,8 @@ const migrations: Migration[] = [
   { version: 10, up: m010.up },
   { version: 11, up: m011.up },
   { version: 12, up: m012.up },
-  { version: 13, up: m013.up }
+  { version: 13, up: m013.up },
+  { version: 14, up: m014.up }
 ]
 
 export function runMigrations(db: Database.Database): void {

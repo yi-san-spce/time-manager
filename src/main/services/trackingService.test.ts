@@ -22,6 +22,7 @@ interface AutoTimeEntryInput {
   appName: string | null
   windowTitle: string | null
   domain?: string | null
+  scheduleId?: string | null
 }
 
 function invokeSample(service: TrackingService): Promise<void> {
@@ -34,6 +35,7 @@ beforeEach(() => {
   mocks.createAutoTimeEntry.mockImplementation((input: AutoTimeEntryInput): TimeEntry => ({
     id: 'created-entry',
     taskId: null,
+    scheduleId: input.scheduleId ?? null,
     startTime: input.startTime,
     endTime: input.endTime,
     source: 'auto',

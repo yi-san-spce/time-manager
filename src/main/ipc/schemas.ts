@@ -127,6 +127,7 @@ export const summarizeActivitySchema = z.object({
 
 export const createManualTimeEntrySchema = z.object({
   taskId: z.string().nullable().optional(),
+  scheduleId: z.string().nullable().optional(),
   startTime: z.number(),
   endTime: z.number(),
   note: z.string().nullable().optional()
@@ -135,6 +136,7 @@ export const createManualTimeEntrySchema = z.object({
 export const updateTimeEntrySchema = z.object({
   id: z.string().min(1),
   taskId: z.string().nullable().optional(),
+  scheduleId: z.string().nullable().optional(),
   startTime: z.number().optional(),
   endTime: z.number().optional(),
   note: z.string().nullable().optional()
@@ -142,7 +144,8 @@ export const updateTimeEntrySchema = z.object({
 
 export const mergeTimeEntriesSchema = z.object({
   ids: z.array(z.string().min(1)).min(2),
-  taskId: z.string().nullable().optional()
+  taskId: z.string().nullable().optional(),
+  scheduleId: z.string().nullable().optional()
 })
 
 export const linkTimeEntryToTaskSchema = z.object({
@@ -223,13 +226,33 @@ export const agentRenameConversationSchema = z.object({
 // 悬浮小窗（需求6）
 export const quickNoteSchema = z.string().max(5000)
 
+export const taskQuickNoteInputSchema = z.object({
+  taskId: z.string().min(1),
+  text: z.string().max(5000)
+})
+
 export const pomodoroSnapshotSchema = z.object({
   phase: z.enum(['focus', 'shortBreak', 'longBreak']),
   running: z.boolean(),
   remainingMs: z.number().nonnegative(),
   totalMs: z.number().nonnegative(),
   linkLabel: z.string().nullable(),
-  active: z.boolean()
+  active: z.boolean(),
+  // Defaults keep a running older main-window renderer from breaking while it is reloaded.
+  taskId: z.string().min(1).nullable().optional().default(null),
+  scheduleId: z.string().min(1).nullable().optional().default(null)
 })
 
-export const pomodoroCommandSchema = z.enum(['pause', 'resume', 'stop', 'skip'])
+export const pomodoroCommandSchema = z.union([
+  z.enum(['pause', 'resume', 'stop', 'skip']),
+  z
+    .object({
+      type: z.literal('start'),
+      taskId: z.string().min(1).nullable().optional(),
+      scheduleId: z.string().min(1).nullable().optional()
+    })
+    .strict()
+    .refine((command) => command.taskId != null || command.scheduleId != null, {
+      message: 'A focus start command must include a taskId or scheduleId'
+    })
+])

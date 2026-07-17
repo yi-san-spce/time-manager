@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Plus, Trash2, ChevronUp, ChevronDown, Eye, Pencil, Tag as TagIcon, Sparkles } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { Plus, Trash2, ChevronUp, ChevronDown, Eye, Pencil, Tag as TagIcon, Sparkles, StickyNote } from 'lucide-react'
 import {
   Drawer,
   Button,
@@ -27,7 +28,10 @@ import {
   useReorderSubtasks,
   useTags,
   useCreateTag,
-  useSetTaskTags
+  useSetTaskTags,
+  useTaskQuickNote,
+  useSetTaskQuickNote,
+  taskQuickNoteKey
 } from './useTasks'
 import { TASK_STATUS_META, TASK_STATUS_ORDER, PRIORITY_META } from './taskMeta'
 import type { Priority, TaskStatus } from '@shared/types/models'
@@ -45,8 +49,18 @@ export interface TaskDetailDrawerProps {
   onClose: () => void
 }
 
+type QuickNoteSaveState = 'loading' | 'saved' | 'unsaved' | 'saving' | 'error'
+
+interface QuickNoteDraft {
+  taskId: string | null
+  content: string
+}
+
+const QUICK_NOTE_DEBOUNCE_MS = 600
+
 export function TaskDetailDrawer({ taskId, onClose }: TaskDetailDrawerProps): React.JSX.Element {
   const { data: task } = useTaskDetail(taskId)
+  const quickNoteQuery = useTaskQuickNote(taskId)
   const { data: categories } = useCategories()
   const { data: allTags } = useTags()
   const updateTask = useUpdateTask()
@@ -57,6 +71,8 @@ export function TaskDetailDrawer({ taskId, onClose }: TaskDetailDrawerProps): Re
   const reorderSubtasks = useReorderSubtasks()
   const createTag = useCreateTag()
   const setTaskTags = useSetTaskTags()
+  const { mutate: saveTaskQuickNote } = useSetTaskQuickNote()
+  const queryClient = useQueryClient()
 
   const [titleDraft, setTitleDraft] = useState('')
   const [descDraft, setDescDraft] = useState('')
@@ -64,7 +80,16 @@ export function TaskDetailDrawer({ taskId, onClose }: TaskDetailDrawerProps): Re
   const [newSubtask, setNewSubtask] = useState('')
   const [newTagName, setNewTagName] = useState('')
   const [aiOpen, setAiOpen] = useState(false)
+  const [quickNoteDraft, setQuickNoteDraft] = useState('')
+  const [quickNoteDraftTaskId, setQuickNoteDraftTaskId] = useState<string | null>(null)
+  const [quickNoteSaveState, setQuickNoteSaveState] = useState<QuickNoteSaveState>('loading')
   const loadedTaskId = useRef<string | null>(null)
+  const quickNoteDraftRef = useRef<QuickNoteDraft>({ taskId: null, content: '' })
+  const quickNoteDirtyRef = useRef(false)
+  const quickNoteSavedByTaskRef = useRef(new Map<string, string>())
+  const quickNoteSavingByTaskRef = useRef(new Map<string, string>())
+  const quickNoteSaveVersionByTaskRef = useRef(new Map<string, number>())
+  const quickNoteSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // 任务切换时同步草稿（只在 id 变化时，避免打字被覆盖）
   useEffect(() => {
@@ -75,6 +100,126 @@ export function TaskDetailDrawer({ taskId, onClose }: TaskDetailDrawerProps): Re
       loadedTaskId.current = task.id
     }
   }, [task])
+
+  const saveQuickNote = useCallback(
+    (taskIdToSave: string, content: string): void => {
+      const activeDraft = quickNoteDraftRef.current
+      const isActiveDraft = activeDraft.taskId === taskIdToSave && activeDraft.content === content
+
+      if (quickNoteSavedByTaskRef.current.get(taskIdToSave) === content) {
+        if (isActiveDraft) {
+          quickNoteDirtyRef.current = false
+          setQuickNoteSaveState('saved')
+        }
+        return
+      }
+
+      if (quickNoteSavingByTaskRef.current.get(taskIdToSave) === content) {
+        if (isActiveDraft) setQuickNoteSaveState('saving')
+        return
+      }
+
+      const nextVersion = (quickNoteSaveVersionByTaskRef.current.get(taskIdToSave) ?? 0) + 1
+      quickNoteSaveVersionByTaskRef.current.set(taskIdToSave, nextVersion)
+      quickNoteSavingByTaskRef.current.set(taskIdToSave, content)
+      if (isActiveDraft) setQuickNoteSaveState('saving')
+
+      saveTaskQuickNote(
+        { taskId: taskIdToSave, text: content },
+        {
+          onSuccess: (savedQuickNote) => {
+            if (quickNoteSaveVersionByTaskRef.current.get(taskIdToSave) !== nextVersion) return
+
+            const savedContent = savedQuickNote.text
+            quickNoteSavingByTaskRef.current.delete(taskIdToSave)
+            quickNoteSavedByTaskRef.current.set(taskIdToSave, savedContent)
+            queryClient.setQueryData(taskQuickNoteKey(taskIdToSave), savedQuickNote)
+
+            const latestDraft = quickNoteDraftRef.current
+            if (latestDraft.taskId !== taskIdToSave) return
+
+            if (latestDraft.content === savedContent) {
+              quickNoteDirtyRef.current = false
+              setQuickNoteSaveState('saved')
+            } else {
+              setQuickNoteSaveState('unsaved')
+            }
+          },
+          onError: () => {
+            if (quickNoteSaveVersionByTaskRef.current.get(taskIdToSave) !== nextVersion) return
+
+            quickNoteSavingByTaskRef.current.delete(taskIdToSave)
+            const latestDraft = quickNoteDraftRef.current
+            if (latestDraft.taskId === taskIdToSave) {
+              setQuickNoteSaveState(latestDraft.content === content ? 'error' : 'unsaved')
+            }
+          }
+        }
+      )
+    },
+    [queryClient, saveTaskQuickNote]
+  )
+
+  // Clear the editor immediately when the drawer moves to another task, then flush the old task's draft.
+  useEffect(() => {
+    const previousDraft = quickNoteDraftRef.current
+    if (previousDraft.taskId === taskId) return
+
+    if (quickNoteSaveTimerRef.current) {
+      clearTimeout(quickNoteSaveTimerRef.current)
+      quickNoteSaveTimerRef.current = null
+    }
+    if (previousDraft.taskId && quickNoteDirtyRef.current) {
+      saveQuickNote(previousDraft.taskId, previousDraft.content)
+    }
+
+    quickNoteDraftRef.current = { taskId, content: '' }
+    quickNoteDirtyRef.current = false
+    setQuickNoteDraftTaskId(taskId)
+    setQuickNoteDraft('')
+    setQuickNoteSaveState(taskId ? 'loading' : 'saved')
+  }, [taskId, saveQuickNote])
+
+  // A late response for a previous task must never replace the active editor's content.
+  useEffect(() => {
+    if (!taskId || !quickNoteQuery.isSuccess || quickNoteDraftRef.current.taskId !== taskId) return
+    if (quickNoteDirtyRef.current) return
+
+    const content = quickNoteQuery.data?.text ?? ''
+    quickNoteSavedByTaskRef.current.set(taskId, content)
+    quickNoteDraftRef.current = { taskId, content }
+    setQuickNoteDraftTaskId(taskId)
+    setQuickNoteDraft(content)
+    setQuickNoteSaveState('saved')
+  }, [taskId, quickNoteQuery.data, quickNoteQuery.isSuccess])
+
+  useEffect(() => {
+    if (taskId && quickNoteQuery.isError && quickNoteDraftRef.current.taskId === taskId) {
+      setQuickNoteSaveState('error')
+    }
+  }, [taskId, quickNoteQuery.isError])
+
+  useEffect(() => {
+    if (!taskId) return
+
+    return window.api.task.onQuickNoteChanged((changedTaskId) => {
+      if (changedTaskId !== taskId || quickNoteDirtyRef.current) return
+      void queryClient.invalidateQueries({ queryKey: taskQuickNoteKey(changedTaskId) })
+    })
+  }, [queryClient, taskId])
+
+  useEffect(() => {
+    return () => {
+      if (quickNoteSaveTimerRef.current) {
+        clearTimeout(quickNoteSaveTimerRef.current)
+        quickNoteSaveTimerRef.current = null
+      }
+      const pendingDraft = quickNoteDraftRef.current
+      if (pendingDraft.taskId && quickNoteDirtyRef.current) {
+        saveQuickNote(pendingDraft.taskId, pendingDraft.content)
+      }
+    }
+  }, [saveQuickNote])
 
   const descHtml = useMemo(() => (descDraft ? renderMarkdown(descDraft) : ''), [descDraft])
 
@@ -89,6 +234,36 @@ export function TaskDetailDrawer({ taskId, onClose }: TaskDetailDrawerProps): Re
   function commitDesc(): void {
     if (task && descDraft !== (task.description ?? '')) {
       updateTask.mutate({ id: task.id, description: descDraft || null })
+    }
+  }
+
+  function changeQuickNote(content: string): void {
+    if (!taskId || quickNoteDraftRef.current.taskId !== taskId) return
+
+    quickNoteDraftRef.current = { taskId, content }
+    quickNoteDirtyRef.current = true
+    setQuickNoteDraftTaskId(taskId)
+    setQuickNoteDraft(content)
+    setQuickNoteSaveState('unsaved')
+
+    if (quickNoteSaveTimerRef.current) clearTimeout(quickNoteSaveTimerRef.current)
+    quickNoteSaveTimerRef.current = setTimeout(() => {
+      quickNoteSaveTimerRef.current = null
+      const pendingDraft = quickNoteDraftRef.current
+      if (pendingDraft.taskId === taskId && pendingDraft.content === content) {
+        saveQuickNote(taskId, content)
+      }
+    }, QUICK_NOTE_DEBOUNCE_MS)
+  }
+
+  function flushQuickNote(): void {
+    if (quickNoteSaveTimerRef.current) {
+      clearTimeout(quickNoteSaveTimerRef.current)
+      quickNoteSaveTimerRef.current = null
+    }
+    const pendingDraft = quickNoteDraftRef.current
+    if (pendingDraft.taskId && quickNoteDirtyRef.current) {
+      saveQuickNote(pendingDraft.taskId, pendingDraft.content)
     }
   }
 
@@ -131,6 +306,22 @@ export function TaskDetailDrawer({ taskId, onClose }: TaskDetailDrawerProps): Re
   const doneCount = task?.subtasks.filter((s) => s.done).length ?? 0
   const totalCount = task?.subtasks.length ?? 0
   const availableTags = allTags?.filter((t) => !task?.tags.some((tt) => tt.id === t.id)) ?? []
+  const quickNoteValue = quickNoteDraftTaskId === taskId ? quickNoteDraft : ''
+  const quickNoteReady = quickNoteDraftTaskId === taskId && quickNoteQuery.isSuccess
+  const quickNoteStatusText: Record<QuickNoteSaveState, string> = {
+    loading: '正在加载',
+    saved: '已保存',
+    unsaved: '待保存',
+    saving: '保存中…',
+    error: '保存失败'
+  }
+  const quickNoteStatusClassName = [
+    styles.quickNoteSaveState,
+    quickNoteSaveState === 'error' && styles.quickNoteSaveStateError,
+    quickNoteSaveState === 'unsaved' && styles.quickNoteSaveStatePending
+  ]
+    .filter(Boolean)
+    .join(' ')
 
   return (
     <Drawer
@@ -267,6 +458,38 @@ export function TaskDetailDrawer({ taskId, onClose }: TaskDetailDrawerProps): Re
             ) : (
               <div className={`${styles.markdownPreview} ${styles.mutedPreview}`}>暂无详情，点击编辑添加。</div>
             )}
+          </div>
+
+          {/* 随心记 */}
+          <div className={styles.block}>
+            <div className={styles.blockLabel}>
+              <span className={styles.quickNoteHeading}>
+                <StickyNote size={15} /> 随心记
+              </span>
+              <span className={quickNoteStatusClassName} aria-live="polite">
+                {quickNoteStatusText[quickNoteSaveState]}
+              </span>
+            </div>
+            {quickNoteQuery.isError ? (
+              <div className={styles.quickNoteError} role="status">
+                <span>无法读取这条任务的随心记。</span>
+                <Button size="sm" variant="ghost" onClick={() => void quickNoteQuery.refetch()}>
+                  重试
+                </Button>
+              </div>
+            ) : (
+              <Textarea
+                className={styles.quickNoteArea}
+                value={quickNoteValue}
+                onChange={(event) => changeQuickNote(event.target.value)}
+                onBlur={flushQuickNote}
+                rows={5}
+                disabled={!quickNoteReady}
+                placeholder="记录此任务的灵感、进展或临时想法…"
+                aria-label="任务随心记"
+              />
+            )}
+            <p className={styles.quickNoteHint}>与悬浮窗随心记同步，停止输入后会自动保存。</p>
           </div>
 
           {/* 子任务清单 */}

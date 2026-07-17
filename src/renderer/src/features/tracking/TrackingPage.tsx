@@ -1,6 +1,15 @@
-import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react'
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+  type PointerEvent as ReactPointerEvent
+} from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { CalendarDays, ChevronLeft, ChevronRight, GitMerge, Plus, Trash2 } from 'lucide-react'
+import { CalendarDays, ChevronLeft, ChevronRight, GitMerge, Plus, RotateCcw, Trash2, ZoomIn, ZoomOut } from 'lucide-react'
 import {
   Badge,
   Button,
@@ -25,16 +34,38 @@ import {
 import { useTimeStats } from '../stats/useTimeStats'
 import { useTasks } from '../tasks/useTasks'
 import { ActivityDetailDrawer } from './ActivityDetailDrawer'
-import { layoutTimelineEntries } from './timelineLayout'
+import { getAnchoredHorizontalTimelineScrollLeft, layoutHorizontalTimelineEntries } from './timelineLayout'
+import { getLinearWheelZoomDelta } from './timelineZoom'
 import type { TimeEntry, TimeStatBucket } from '@shared/types/models'
 import trackStyles from './TrackingPage.module.css'
 
 type ViewMode = 'summary' | 'timeline'
 
 const HOURS = Array.from({ length: 25 }, (_, hour) => hour)
-const TIMELINE_HOUR_HEIGHT = 76
-const TIMELINE_COMPACT_THRESHOLD_MS = 15 * 60 * 1000
-const TIMELINE_MINIMUM_VISUAL_DURATION_MS = 10 * 60 * 1000
+const MINUTES_PER_HOUR = 60
+const TIMELINE_DEFAULT_PIXELS_PER_HOUR = 720
+const TIMELINE_MIN_PIXELS_PER_HOUR = 60
+const TIMELINE_MAX_PIXELS_PER_HOUR = 7200
+/** One zoom step is exactly one rendered pixel for each minute of the day. */
+const TIMELINE_ZOOM_STEP = MINUTES_PER_HOUR
+const TIMELINE_MINUTE_GRID_THRESHOLD = 600
+const TIMELINE_ROW_HEIGHT = 74
+const TIMELINE_ROW_GAP = 10
+const TIMELINE_CANVAS_PADDING_Y = 12
+const TIMELINE_MIN_CANVAS_HEIGHT = 172
+
+interface TimelineDragState {
+  pointerId: number
+  startClientX: number
+  startScrollLeft: number
+  didDrag: boolean
+}
+
+interface PendingTimelineZoomAnchor {
+  scrollLeftPx: number
+  viewportOffsetPx: number
+  currentPixelsPerHour: number
+}
 
 function startOfLocalDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate())
@@ -103,7 +134,9 @@ function formatDuration(ms: number): string {
 }
 
 function entryTitle(entry: TimeEntry, taskTitle?: string): string {
-  return taskTitle ?? entry.appName ?? entry.note ?? '未命名记录'
+  // Auto-tracked entries should always identify the app first. A linked task is
+  // useful context, but making it the title hid the application the user opened.
+  return entry.appName?.trim() || entry.windowTitle?.trim() || taskTitle?.trim() || entry.note?.trim() || '未命名记录'
 }
 
 function colorForApp(appName: string | null): string {
@@ -134,12 +167,24 @@ export function TrackingPage(): React.JSX.Element {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [openApp, setOpenApp] = useState<string | null>(null)
   const [activeEntryId, setActiveEntryId] = useState<string | null>(null)
+  const [timelinePixelsPerHour, setTimelinePixelsPerHour] = useState(TIMELINE_DEFAULT_PIXELS_PER_HOUR)
   const [manualOpen, setManualOpen] = useState(false)
   const [manualStart, setManualStart] = useState('09:00')
   const [manualEnd, setManualEnd] = useState('09:30')
   const [manualTaskId, setManualTaskId] = useState('')
   const [manualNote, setManualNote] = useState('')
   const [manualError, setManualError] = useState('')
+  const [isTimelineDragging, setIsTimelineDragging] = useState(false)
+  const timelineViewportRef = useRef<HTMLDivElement>(null)
+  const focusedTimelineDateRef = useRef<number | null>(null)
+  const timelineDragRef = useRef<TimelineDragState | null>(null)
+  const suppressTimelineBlockClickRef = useRef(false)
+  const pendingTimelineZoomAnchorRef = useRef<PendingTimelineZoomAnchor | null>(null)
+  // A native wheel listener can receive several events before React has painted
+  // the previous state update. Keep the logical scale in sync immediately so
+  // fast scrolling never drops a zoom increment.
+  const timelinePixelsPerHourRef = useRef(TIMELINE_DEFAULT_PIXELS_PER_HOUR)
+  const lastTimelineWheelTimestampRef = useRef<number | null>(null)
 
   const today = startOfLocalDay(new Date())
   const isToday = sameLocalDay(selectedDate, today)
@@ -152,13 +197,16 @@ export function TrackingPage(): React.JSX.Element {
     [tasks]
   )
   const timelineItems = useMemo(
-    () =>
-      layoutTimelineEntries(entries ?? [], range, {
-        compactThresholdMs: TIMELINE_COMPACT_THRESHOLD_MS,
-        minimumVisualDurationMs: TIMELINE_MINIMUM_VISUAL_DURATION_MS
-      }),
-    [entries, range.rangeEnd, range.rangeStart]
+    () => layoutHorizontalTimelineEntries(entries ?? [], range, { pixelsPerHour: timelinePixelsPerHour }),
+    [entries, range.rangeEnd, range.rangeStart, timelinePixelsPerHour]
   )
+  const timelineRowCount = timelineItems[0]?.rowCount ?? 1
+  const timelineCanvasWidth = 24 * timelinePixelsPerHour
+  const timelineCanvasHeight = Math.max(
+    TIMELINE_MIN_CANVAS_HEIGHT,
+    timelineRowCount * TIMELINE_ROW_HEIGHT + (timelineRowCount - 1) * TIMELINE_ROW_GAP + TIMELINE_CANVAS_PADDING_Y * 2
+  )
+  const timelinePixelsPerMinute = timelinePixelsPerHour / MINUTES_PER_HOUR
   const activeTimelineItem = timelineItems.find((item) => item.entry.id === activeEntryId) ?? null
   const activeEntry = activeTimelineItem?.entry ?? null
   const activeTask = activeEntry?.taskId ? tasks?.find((task) => task.id === activeEntry.taskId) : undefined
@@ -177,6 +225,75 @@ export function TrackingPage(): React.JSX.Element {
     setSelectedIds([])
     setActiveEntryId(null)
   }, [range.rangeStart])
+
+  useEffect(() => {
+    if (viewMode !== 'timeline' || focusedTimelineDateRef.current === range.rangeStart || timelineItems.length === 0) {
+      return
+    }
+
+    const viewport = timelineViewportRef.current
+    if (!viewport) return
+
+    const firstVisibleStart = timelineItems[0].visibleStartTime
+    const firstVisibleHour = (firstVisibleStart - range.rangeStart) / (60 * 60 * 1000)
+    const frame = window.requestAnimationFrame(() => {
+      viewport.scrollLeft = Math.max(0, firstVisibleHour * timelinePixelsPerHour - viewport.clientWidth * 0.2)
+      focusedTimelineDateRef.current = range.rangeStart
+    })
+
+    return () => window.cancelAnimationFrame(frame)
+  }, [range.rangeStart, timelineItems, timelinePixelsPerHour, viewMode])
+
+  useLayoutEffect(() => {
+    const anchor = pendingTimelineZoomAnchorRef.current
+    if (!anchor) return
+
+    pendingTimelineZoomAnchorRef.current = null
+    const viewport = timelineViewportRef.current
+    if (!viewport) return
+
+    viewport.scrollLeft = getAnchoredHorizontalTimelineScrollLeft({
+      ...anchor,
+      nextPixelsPerHour: timelinePixelsPerHour,
+      contentWidthPx: timelineCanvasWidth,
+      viewportWidthPx: viewport.clientWidth
+    })
+  }, [timelineCanvasWidth, timelinePixelsPerHour])
+
+  // React delegates wheel events passively, which prevents `preventDefault()` from stopping
+  // the page scroll. Attach this listener directly so the timeline owns the wheel while hovered.
+  useEffect(() => {
+    if (viewMode !== 'timeline') return
+    const viewport = timelineViewportRef.current
+    if (!viewport) return
+
+    const onWheel = (event: WheelEvent): void => {
+      if (event.deltaY === 0) return
+      event.preventDefault()
+
+      const timestamp = Number.isFinite(event.timeStamp) ? event.timeStamp : performance.now()
+      const previousTimestamp = lastTimelineWheelTimestampRef.current
+      lastTimelineWheelTimestampRef.current = timestamp
+      const elapsedMs = previousTimestamp === null ? 120 : Math.max(0, timestamp - previousTimestamp)
+      const bounds = viewport.getBoundingClientRect()
+      const pointerOffsetPx = Math.min(viewport.clientWidth, Math.max(0, event.clientX - bounds.left))
+      const wheelZoomDelta = getLinearWheelZoomDelta({
+        deltaY: event.deltaY,
+        deltaMode: event.deltaMode,
+        elapsedMs,
+        viewportHeightPx: viewport.clientHeight
+      })
+      // A negative wheel delta conventionally zooms in, while the helper keeps
+      // the wheel's native sign (negative is upward) for testable normalization.
+      setTimelineZoom(timelinePixelsPerHourRef.current - wheelZoomDelta, pointerOffsetPx)
+    }
+
+    viewport.addEventListener('wheel', onWheel, { passive: false })
+    return () => {
+      lastTimelineWheelTimestampRef.current = null
+      viewport.removeEventListener('wheel', onWheel)
+    }
+  }, [viewMode])
 
   function toggleSelect(id: string): void {
     setSelectedIds((previous) => (previous.includes(id) ? previous.filter((item) => item !== id) : [...previous, id]))
@@ -227,6 +344,91 @@ export function TrackingPage(): React.JSX.Element {
   function handleDateChange(value: string): void {
     const nextDate = parseDateInput(value)
     if (nextDate && nextDate.getTime() <= today.getTime()) setSelectedDate(nextDate)
+  }
+
+  function setTimelineZoom(nextValue: number, viewportOffsetPx?: number): void {
+    const snapped = Math.round(nextValue / TIMELINE_ZOOM_STEP) * TIMELINE_ZOOM_STEP
+    const nextPixelsPerHour = Math.min(TIMELINE_MAX_PIXELS_PER_HOUR, Math.max(TIMELINE_MIN_PIXELS_PER_HOUR, snapped))
+    const currentPixelsPerHour = timelinePixelsPerHourRef.current
+    if (nextPixelsPerHour === currentPixelsPerHour) return
+
+    const viewport = timelineViewportRef.current
+    if (viewport) {
+      const firstVisibleItem = timelineItems.find(
+        (item) =>
+          item.leftPx + item.renderWidthPx >= viewport.scrollLeft &&
+          item.leftPx <= viewport.scrollLeft + viewport.clientWidth
+      )
+      // Toolbar controls have no pointer position. Keep the first visible activity in view
+      // instead of zooming around a blank midpoint; wheel zoom still passes its exact cursor x.
+      const defaultAnchorOffset = firstVisibleItem
+        ? firstVisibleItem.leftPx - viewport.scrollLeft
+        : viewport.clientWidth / 2
+      const anchorX = Math.min(
+        viewport.clientWidth,
+        Math.max(0, viewportOffsetPx ?? defaultAnchorOffset)
+      )
+      pendingTimelineZoomAnchorRef.current = {
+        scrollLeftPx: viewport.scrollLeft,
+        viewportOffsetPx: anchorX,
+        currentPixelsPerHour
+      }
+    }
+
+    timelinePixelsPerHourRef.current = nextPixelsPerHour
+    setTimelinePixelsPerHour(nextPixelsPerHour)
+  }
+
+  function handleTimelinePointerDown(event: ReactPointerEvent<HTMLDivElement>): void {
+    if (event.button !== 0 || event.pointerType === 'touch') return
+
+    const viewport = event.currentTarget
+    viewport.setPointerCapture(event.pointerId)
+    timelineDragRef.current = {
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startScrollLeft: viewport.scrollLeft,
+      didDrag: false
+    }
+    setIsTimelineDragging(true)
+  }
+
+  function handleTimelinePointerMove(event: ReactPointerEvent<HTMLDivElement>): void {
+    const drag = timelineDragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+
+    const deltaX = event.clientX - drag.startClientX
+    if (!drag.didDrag && Math.abs(deltaX) >= 3) {
+      drag.didDrag = true
+    }
+    if (!drag.didDrag) return
+
+    event.preventDefault()
+    const maxScrollLeft = Math.max(0, event.currentTarget.scrollWidth - event.currentTarget.clientWidth)
+    event.currentTarget.scrollLeft = Math.min(maxScrollLeft, Math.max(0, drag.startScrollLeft - deltaX))
+  }
+
+  function stopTimelineDrag(event: ReactPointerEvent<HTMLDivElement>): void {
+    const drag = timelineDragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+
+    timelineDragRef.current = null
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+    setIsTimelineDragging(false)
+
+    if (drag.didDrag) {
+      suppressTimelineBlockClickRef.current = true
+      window.setTimeout(() => {
+        suppressTimelineBlockClickRef.current = false
+      }, 0)
+    }
+  }
+
+  function handleTimelineBlockClick(id: string): void {
+    if (suppressTimelineBlockClickRef.current) return
+    setActiveEntryId(id)
   }
 
   function deleteActiveEntry(): void {
@@ -292,25 +494,115 @@ export function TrackingPage(): React.JSX.Element {
         <TrackingSummary buckets={timeStats?.byApp} onSelect={setOpenApp} />
       ) : (
         <>
-          <div className={trackStyles.timelineViewport}>
-            <div className={trackStyles.timelineAxis} aria-hidden="true">
+          <div className={trackStyles.timelinePanel}>
+            <div className={trackStyles.timelineToolbar}>
+              <div>
+                <div className={trackStyles.timelineToolbarTitle}>横向时间轴</div>
+                <p className={trackStyles.timelineToolbarHint}>
+                  按真实起止时间排列；左键拖动平移，悬停后滚轮缩放。慢滚逐分钟微调，快速滚动线性加速。
+                </p>
+              </div>
+              <div className={trackStyles.timelineZoomControls}>
+                <IconButton
+                  size="sm"
+                  aria-label="缩小时间轴"
+                  title="缩小时间轴"
+                  onClick={() => setTimelineZoom(timelinePixelsPerHour - TIMELINE_ZOOM_STEP)}
+                  disabled={timelinePixelsPerHour <= TIMELINE_MIN_PIXELS_PER_HOUR}
+                >
+                  <ZoomOut size={15} />
+                </IconButton>
+                <label className={trackStyles.timelineZoomRange}>
+                  <span>缩放</span>
+                  <input
+                    type="range"
+                    min={TIMELINE_MIN_PIXELS_PER_HOUR}
+                    max={TIMELINE_MAX_PIXELS_PER_HOUR}
+                    step={TIMELINE_ZOOM_STEP}
+                    value={timelinePixelsPerHour}
+                    aria-label="时间轴缩放"
+                    onChange={(event) => setTimelineZoom(Number(event.target.value))}
+                  />
+                </label>
+                <output
+                  className={trackStyles.timelineZoomValue}
+                  aria-live="polite"
+                  title={`每分钟 ${timelinePixelsPerMinute} 像素`}
+                >
+                  {timelinePixelsPerMinute}px/分
+                </output>
+                <IconButton
+                  size="sm"
+                  aria-label="放大时间轴"
+                  title="放大时间轴"
+                  onClick={() => setTimelineZoom(timelinePixelsPerHour + TIMELINE_ZOOM_STEP)}
+                  disabled={timelinePixelsPerHour >= TIMELINE_MAX_PIXELS_PER_HOUR}
+                >
+                  <ZoomIn size={15} />
+                </IconButton>
+                <IconButton
+                  size="sm"
+                  aria-label="重置时间轴缩放"
+                  title="重置为 100%"
+                  onClick={() => setTimelineZoom(TIMELINE_DEFAULT_PIXELS_PER_HOUR)}
+                  disabled={timelinePixelsPerHour === TIMELINE_DEFAULT_PIXELS_PER_HOUR}
+                >
+                  <RotateCcw size={14} />
+                </IconButton>
+              </div>
+            </div>
+            <div
+              ref={timelineViewportRef}
+              className={[trackStyles.timelineViewport, isTimelineDragging && trackStyles.timelineViewportDragging]
+                .filter(Boolean)
+                .join(' ')}
+              tabIndex={0}
+              aria-label="横向追踪时间轴。左键拖动平移，鼠标滚轮缩放。"
+              onPointerDown={handleTimelinePointerDown}
+              onPointerMove={handleTimelinePointerMove}
+              onPointerUp={stopTimelineDrag}
+              onPointerCancel={stopTimelineDrag}
+              onLostPointerCapture={stopTimelineDrag}
+            >
+              <div
+                className={trackStyles.timelineSurface}
+                data-minute-grid={timelinePixelsPerHour >= TIMELINE_MINUTE_GRID_THRESHOLD ? 'true' : undefined}
+                style={
+                  {
+                    width: `${timelineCanvasWidth}px`,
+                    '--timeline-hour-width': `${timelinePixelsPerHour}px`,
+                    '--timeline-minute-width': `${timelinePixelsPerMinute}px`,
+                    '--timeline-row-height': `${TIMELINE_ROW_HEIGHT}px`
+                  } as CSSProperties
+                }
+              >
+                <div className={trackStyles.timelineRuler} aria-hidden="true">
               {HOURS.map((hour) => (
-                <span key={hour} className={trackStyles.timelineHour} style={{ top: `${(hour / 24) * 100}%` }}>
+                <span key={hour} className={trackStyles.timelineHour} style={{ left: `${hour * timelinePixelsPerHour}px` }}>
                   {String(hour).padStart(2, '0')}:00
                 </span>
               ))}
             </div>
-            <div className={trackStyles.timelineCanvas} style={{ height: `${24 * TIMELINE_HOUR_HEIGHT}px` }}>
+                <div className={trackStyles.timelineCanvas} style={{ height: `${timelineCanvasHeight}px` }}>
               {timelineItems.map((item) => {
                 const task = item.entry.taskId ? tasks?.find((candidate) => candidate.id === item.entry.taskId) : undefined
                 const title = entryTitle(item.entry, task?.title)
+                const taskLabel = task?.title && task.title !== title ? `任务：${task.title}` : ''
+                const taskPrefix = taskLabel ? `${taskLabel} · ` : ''
                 const selected = selectedIds.includes(item.entry.id) || activeEntryId === item.entry.id
-                const width = 100 / item.laneCount
+                const tooltip = [
+                  title,
+                  taskLabel,
+                  `${formatTime(item.visibleStartTime)} – ${formatTime(item.visibleEndTime)} · ${formatDuration(item.durationMs)}`,
+                  item.entry.windowTitle
+                ]
+                  .filter(Boolean)
+                  .join('\n')
                 const blockStyle = {
-                  top: `${item.top}%`,
-                  height: `${item.height}%`,
-                  left: `calc(${item.lane * width}% + 4px)`,
-                  width: `calc(${width}% - 8px)`,
+                  top: `${TIMELINE_CANVAS_PADDING_Y + item.row * (TIMELINE_ROW_HEIGHT + TIMELINE_ROW_GAP)}px`,
+                  height: `${TIMELINE_ROW_HEIGHT}px`,
+                  left: `${item.leftPx}px`,
+                  width: `${item.renderWidthPx}px`,
                   '--app-color': colorForApp(item.entry.appName)
                 } as CSSProperties
 
@@ -321,16 +613,19 @@ export function TrackingPage(): React.JSX.Element {
                     radius="sm"
                     role="button"
                     tabIndex={0}
+                    aria-label={tooltip}
+                    aria-pressed={selected}
                     className={[
                       trackStyles.timelineBlock,
-                      item.isCompact && trackStyles.timelineBlockCompact,
+                      item.renderMode === 'marker' && trackStyles.timelineBlockMarker,
+                      item.renderMode === 'compact' && trackStyles.timelineBlockCompact,
                       selected && trackStyles.timelineBlockSelected
                     ]
                       .filter(Boolean)
                       .join(' ')}
                     style={blockStyle}
-                    title={`${title} · ${formatTime(item.visibleStartTime)} - ${formatTime(item.visibleEndTime)} · ${formatDuration(item.durationMs)}`}
-                    onClick={() => setActiveEntryId(item.entry.id)}
+                    title={tooltip}
+                    onClick={() => handleTimelineBlockClick(item.entry.id)}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter' || event.key === ' ') {
                         event.preventDefault()
@@ -338,9 +633,10 @@ export function TrackingPage(): React.JSX.Element {
                       }
                     }}
                   >
-                    <span className={trackStyles.timelineBlockHeader}>{title}</span>
-                    {!item.isCompact && (
+                    {item.renderMode !== 'marker' && <span className={trackStyles.timelineBlockHeader}>{title}</span>}
+                    {item.renderMode === 'card' && (
                       <span className={trackStyles.timelineBlockMeta}>
+                        {taskPrefix}
                         {formatTime(item.visibleStartTime)} – {formatTime(item.visibleEndTime)} · {formatDuration(item.durationMs)}
                       </span>
                     )}
@@ -351,6 +647,8 @@ export function TrackingPage(): React.JSX.Element {
               {timelineItems.length === 0 && !isLoading && (
                 <div className={trackStyles.timelineEmpty}>这一天还没有追踪记录。</div>
               )}
+                </div>
+              </div>
             </div>
           </div>
 

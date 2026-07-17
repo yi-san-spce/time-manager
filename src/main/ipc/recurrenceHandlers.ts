@@ -9,6 +9,7 @@ import {
 } from '../db/repositories/recurrenceRepo'
 import { expandSchedule } from '../services/recurrenceExpansion'
 import { expandRecurrenceSchema, setScheduleExceptionSchema } from './schemas'
+import { emitWidgetContextChanged } from '../services/widgetContextBus'
 
 function expandAllRecurringSchedules(rangeStart: number, rangeEnd: number): ScheduleOccurrence[] {
   const recurringSchedules = listRecurringSchedules()
@@ -49,6 +50,7 @@ export function registerRecurrenceHandlers(): void {
   ipcMain.handle(IPC.recurrenceSetException, (_event, input) => {
     const parsed = setScheduleExceptionSchema.parse(input)
     setScheduleException(parsed.scheduleId, parsed.occurrenceDate, parsed.action)
+    emitWidgetContextChanged()
   })
 }
 

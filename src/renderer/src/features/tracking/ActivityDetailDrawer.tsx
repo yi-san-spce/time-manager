@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Sparkles, Clock, Globe, ExternalLink } from 'lucide-react'
-import { Drawer, Button, Textarea, GlassSurface, IconButton } from '../../design-system'
+import { Drawer, Button, Textarea, GlassSurface } from '../../design-system'
 import { renderMarkdown } from '../../design-system/markdown'
 import {
   useActivityDetail,
@@ -92,18 +92,29 @@ export function ActivityDetailDrawer({ appName, range, onClose }: ActivityDetail
                     className={styles.targetBar}
                     style={{ width: `${Math.round((t.minutes / maxMinutes) * 100)}%` }}
                   />
-                  <span className={styles.targetName} title={t.key}>
-                    {t.key}
-                  </span>
+                  <div className={styles.targetInfo}>
+                    <span className={styles.targetName} title={t.key}>
+                      {t.key}
+                    </span>
+                    {t.openHost && (
+                      <span className={styles.targetHost} title={`https://${t.openHost}`}>
+                        {t.openHost}
+                      </span>
+                    )}
+                  </div>
                   <div className={styles.targetActions}>
                     {t.openHost && (
-                      <IconButton
-                        onClick={() => handleOpenHost(t.openHost as string)}
-                        aria-label={`在浏览器中打开 ${t.openHost}`}
-                        title={`打开 ${t.openHost}`}
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className={styles.openHostButton}
+                        onClick={() => t.openHost && handleOpenHost(t.openHost)}
+                        aria-label={`在浏览器中打开 ${t.openHost} 的主页`}
+                        title={`在浏览器中打开 https://${t.openHost}`}
                       >
-                        <ExternalLink size={15} />
-                      </IconButton>
+                        <ExternalLink size={14} />
+                        打开主页
+                      </Button>
                     )}
                     <span className={styles.targetValue}>{formatDuration(t.minutes)}</span>
                   </div>

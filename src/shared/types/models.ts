@@ -104,6 +104,8 @@ export interface TaskListItem extends Task {
 export interface TimeEntry {
   id: string
   taskId: string | null
+  /** Optional calendar context selected when the entry was created or edited. */
+  scheduleId: string | null
   startTime: number
   endTime: number
   source: TimeEntrySource
@@ -112,6 +114,13 @@ export interface TimeEntry {
   domain: string | null
   note: string | null
   createdAt: number
+  updatedAt: number
+}
+
+/** A free-form note that belongs to one task and is shared by task detail and the floating widget. */
+export interface TaskQuickNote {
+  taskId: string
+  text: string
   updatedAt: number
 }
 

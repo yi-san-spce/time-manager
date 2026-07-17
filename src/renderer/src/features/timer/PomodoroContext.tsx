@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import type { PomodoroConfig } from '@shared/types/ipc'
+import type { PomodoroConfig, PomodoroDispatchCommand } from '@shared/types/ipc'
 import {
   focusNote,
   nextPhaseAfterFocus,
@@ -20,6 +20,7 @@ const DEFAULT_CONFIG: PomodoroConfig = {
 
 export interface PomodoroLink {
   taskId?: string | null
+  scheduleId?: string | null
   label: string // 显示用：任务标题 / 日程标题 / “专注”
 }
 
@@ -81,6 +82,7 @@ export function PomodoroProvider({ children }: { children: React.ReactNode }): R
       void window.api.timeEntry
         .createManual({
           taskId: forLink?.taskId ?? null,
+          scheduleId: forLink?.scheduleId ?? null,
           startTime: start,
           endTime: end,
           note: focusNote(forLink?.label)
@@ -135,6 +137,20 @@ export function PomodoroProvider({ children }: { children: React.ReactNode }): R
 
   const start = useCallback(
     (nextLink: PomodoroLink) => {
+      const isSameTarget =
+        link?.taskId === (nextLink.taskId ?? null) && link?.scheduleId === (nextLink.scheduleId ?? null)
+
+      // 点击同一目标只恢复专注，避免小窗重复点击把计时重新归零。
+      if (isSameTarget && phase === 'focus') {
+        setRunning(true)
+        return
+      }
+
+      // 从另一任务/日程切换时，先结算已经累积的有效专注，不能直接覆盖它。
+      if (phase === 'focus') {
+        logFocus(focusAccumMs.current, link)
+      }
+      focusAccumMs.current = 0
       const dur = phaseDurationMs('focus', config)
       setLink(nextLink)
       setPhase('focus')
@@ -143,7 +159,7 @@ export function PomodoroProvider({ children }: { children: React.ReactNode }): R
       focusAccumMs.current = 0
       setRunning(true)
     },
-    [config]
+    [config, link, logFocus, phase]
   )
 
   const pause = useCallback(() => setRunning(false), [])
@@ -205,19 +221,24 @@ export function PomodoroProvider({ children }: { children: React.ReactNode }): R
       remainingMs,
       totalMs,
       linkLabel: link?.label ?? null,
-      active: link !== null
+      active: link !== null,
+      taskId: link?.taskId ?? null,
+      scheduleId: link?.scheduleId ?? null
     })
   }, [phase, running, remainingMs, totalMs, link])
 
   // 需求6：响应悬浮小窗回传的控制命令
   useEffect(() => {
-    return window.api.pomodoroSync.onCommand((command) => {
+    return window.api.pomodoroSync.onCommand((command: PomodoroDispatchCommand) => {
       if (command === 'pause') pause()
       else if (command === 'resume') resume()
       else if (command === 'stop') stop()
       else if (command === 'skip') skip()
+      else if (command.type === 'start') {
+        start({ taskId: command.taskId, scheduleId: command.scheduleId, label: command.linkLabel })
+      }
     })
-  }, [pause, resume, stop, skip])
+  }, [pause, resume, start, stop, skip])
 
   const value = useMemo<PomodoroContextValue>(
     () => ({

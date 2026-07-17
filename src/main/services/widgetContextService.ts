@@ -1,47 +1,94 @@
-import type { WidgetContext } from '@shared/types/ipc'
+import type { Schedule, ScheduleOccurrence, ScheduleStatus } from '@shared/types/models'
+import type { WidgetContext, WidgetSchedule } from '@shared/types/ipc'
 import { listSchedules } from '../db/repositories/scheduleRepo'
 import { listTasks } from '../db/repositories/taskRepo'
 import { expandAllRecurringSchedules } from '../ipc/recurrenceHandlers'
 
+function startOfLocalDay(timestamp: number): number {
+  const date = new Date(timestamp)
+  date.setHours(0, 0, 0, 0)
+  return date.getTime()
+}
+
+function overlaps(startTime: number, endTime: number, rangeStart: number, rangeEnd: number): boolean {
+  return startTime < rangeEnd && endTime > rangeStart
+}
+
+function isFocusableSchedule(status: ScheduleStatus): boolean {
+  return status === 'planned'
+}
+
+function toWidgetSchedule(schedule: Schedule, startTime = schedule.startTime, endTime = schedule.endTime, status = schedule.status): WidgetSchedule {
+  return {
+    id: schedule.id,
+    title: schedule.title,
+    startTime,
+    endTime,
+    status
+  }
+}
+
+function occurrenceStatus(occurrence: ScheduleOccurrence): ScheduleStatus {
+  return occurrence.exceptionAction === 'completed' ? 'completed' : occurrence.schedule.status
+}
+
 /**
- * 计算“此刻”的悬浮窗上下文（需求6）：命中当前时间点的日程 + 其关联任务。
- * 单次（非重复）日程按 start/end 命中；重复日程展开今日窗口后取命中的一次。
- * 命中多个时取结束最早的（更贴近“正在进行、即将结束”的那件事）。
+ * Returns the local-day calendar occurrence list plus every task that can still be focused.
+ * Recurrence instances retain their parent schedule ID because the rest of the data model links
+ * work to a schedule, not to a separately persisted occurrence.
  */
 export function getWidgetContext(now = Date.now()): WidgetContext {
-  const hits: Array<{ id: string; title: string; startTime: number; endTime: number }> = []
+  const dayStart = startOfLocalDay(now)
+  const dayEnd = new Date(dayStart).setDate(new Date(dayStart).getDate() + 1)
+  const schedules = listSchedules()
+  const todaySchedules: WidgetSchedule[] = []
 
-  // 单次日程：直接按时间区间命中（排除重复母版，母版靠展开）
-  for (const s of listSchedules()) {
-    if (s.recurrenceRuleId) continue
-    if (s.startTime <= now && now < s.endTime) {
-      hits.push({ id: s.id, title: s.title, startTime: s.startTime, endTime: s.endTime })
+  for (const schedule of schedules) {
+    if (
+      !schedule.recurrenceRuleId &&
+      isFocusableSchedule(schedule.status) &&
+      overlaps(schedule.startTime, schedule.endTime, dayStart, dayEnd)
+    ) {
+      todaySchedules.push(toWidgetSchedule(schedule))
     }
   }
 
-  // 重复日程：展开今日范围，取命中当前时刻的发生实例（跳过被标记跳过的）
-  const dayStart = now - 12 * 60 * 60 * 1000
-  const dayEnd = now + 12 * 60 * 60 * 1000
-  for (const occ of expandAllRecurringSchedules(dayStart, dayEnd)) {
-    if (occ.exceptionAction === 'skipped') continue
-    if (occ.occurrenceStart <= now && now < occ.occurrenceEnd) {
-      hits.push({
-        id: occ.schedule.id,
-        title: occ.schedule.title,
-        startTime: occ.occurrenceStart,
-        endTime: occ.occurrenceEnd
-      })
+  // Expand far enough backwards to retain a recurring event that began before midnight but
+  // overlaps the selected day. This also avoids treating the recurring parent row as an instance.
+  const longestRecurringDuration = schedules
+    .filter((schedule) => schedule.recurrenceRuleId)
+    .reduce((longest, schedule) => Math.max(longest, schedule.endTime - schedule.startTime), 0)
+  const recurringRangeStart = dayStart - Math.max(0, longestRecurringDuration)
+
+  for (const occurrence of expandAllRecurringSchedules(recurringRangeStart, dayEnd)) {
+    const status = occurrenceStatus(occurrence)
+    if (
+      occurrence.exceptionAction === 'skipped' ||
+      !isFocusableSchedule(status) ||
+      !overlaps(occurrence.occurrenceStart, occurrence.occurrenceEnd, dayStart, dayEnd)
+    ) {
+      continue
     }
+    todaySchedules.push(
+      toWidgetSchedule(occurrence.schedule, occurrence.occurrenceStart, occurrence.occurrenceEnd, status)
+    )
   }
 
-  if (hits.length === 0) return { schedule: null, tasks: [] }
+  todaySchedules.sort((a, b) => a.startTime - b.startTime || a.endTime - b.endTime || a.title.localeCompare(b.title))
 
-  hits.sort((a, b) => a.endTime - b.endTime)
-  const schedule = hits[0]
+  const currentSchedule =
+    todaySchedules
+      .filter((schedule) => schedule.status === 'planned' && schedule.startTime <= now && now < schedule.endTime)
+      .sort((a, b) => a.endTime - b.endTime || a.startTime - b.startTime)[0] ?? null
 
-  const tasks = listTasks()
-    .filter((t) => t.scheduleId === schedule.id)
-    .map((t) => ({ id: t.id, title: t.title, status: t.status }))
+  const focusableTasks = listTasks()
+    .filter((task) => task.status !== 'done' && task.status !== 'cancelled')
+    .map((task) => ({
+      id: task.id,
+      title: task.title,
+      status: task.status,
+      scheduleId: task.scheduleId
+    }))
 
-  return { schedule, tasks }
+  return { currentSchedule, todaySchedules, focusableTasks }
 }

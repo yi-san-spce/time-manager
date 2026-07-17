@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_COMPACT_THRESHOLD_MS,
+  getAnchoredHorizontalTimelineScrollLeft,
+  layoutHorizontalTimelineEntries,
   layoutTimelineEntries,
   type TimelineEntryLike,
   type TimelineDayRange
@@ -142,5 +144,115 @@ describe('layoutTimelineEntries', () => {
       visualDurationMs: MINUTE
     })
     expect(layouts[0].height).toBeCloseTo(100 / (24 * 60))
+  })
+})
+
+describe('layoutHorizontalTimelineEntries', () => {
+  it('keeps adjacent short segments in one chronological row', () => {
+    const range = dayRange()
+    const layouts = layoutHorizontalTimelineEntries(
+      [
+        entry('first', range.rangeStart, range.rangeStart + 30 * 1000),
+        entry('second', range.rangeStart + 30 * 1000, range.rangeStart + MINUTE)
+      ],
+      range,
+      { pixelsPerHour: 120 }
+    )
+
+    expect(layouts.map(({ row, rowCount }) => ({ row, rowCount }))).toEqual([
+      { row: 0, rowCount: 1 },
+      { row: 0, rowCount: 1 }
+    ])
+    expect(layouts.map((item) => item.renderMode)).toEqual(['marker', 'marker'])
+    expect(layouts[0]).toMatchObject({ leftPx: 0, actualWidthPx: 1, renderWidthPx: 3 })
+  })
+
+  it('uses another row only for real overlap and preserves horizontal proportions', () => {
+    const range = dayRange()
+    const layouts = layoutHorizontalTimelineEntries(
+      [
+        entry('long', range.rangeStart + HOUR, range.rangeStart + 2 * HOUR),
+        entry('overlap', range.rangeStart + HOUR + 30 * MINUTE, range.rangeStart + 2 * HOUR + 30 * MINUTE)
+      ],
+      range,
+      { pixelsPerHour: 120 }
+    )
+
+    expect(layouts.map(({ row, rowCount }) => ({ row, rowCount }))).toEqual([
+      { row: 0, rowCount: 2 },
+      { row: 1, rowCount: 2 }
+    ])
+    expect(layouts[0]).toMatchObject({ leftPx: 120, actualWidthPx: 120, renderMode: 'card' })
+    expect(layouts[1]).toMatchObject({ leftPx: 180, actualWidthPx: 120, renderMode: 'card' })
+  })
+
+  it('clips at midnight and changes readable mode with zoom', () => {
+    const range = dayRange()
+    const source = entry('cross-day', range.rangeStart - HOUR, range.rangeStart + 5 * MINUTE)
+    const compact = layoutHorizontalTimelineEntries([source], range, { pixelsPerHour: 120 })[0]
+    const card = layoutHorizontalTimelineEntries([source], range, { pixelsPerHour: 1536 })[0]
+
+    expect(compact).toMatchObject({ visibleStartTime: range.rangeStart, leftPx: 0, actualWidthPx: 10, renderMode: 'marker' })
+    expect(card).toMatchObject({ actualWidthPx: 128, renderMode: 'card' })
+  })
+
+  it('uses marker, compact-label, and full-card modes at readable widths', () => {
+    const range = dayRange()
+    const layouts = layoutHorizontalTimelineEntries(
+      [
+        entry('marker', range.rangeStart, range.rangeStart + 8 * MINUTE),
+        entry('compact', range.rangeStart + HOUR, range.rangeStart + HOUR + 35 * MINUTE),
+        entry('card', range.rangeStart + 2 * HOUR, range.rangeStart + 2 * HOUR + 2 * HOUR)
+      ],
+      range,
+      { pixelsPerHour: 60 }
+    )
+
+    expect(layouts.map((item) => item.renderMode)).toEqual(['marker', 'compact', 'card'])
+  })
+})
+
+describe('getAnchoredHorizontalTimelineScrollLeft', () => {
+  it('keeps the minute under the cursor fixed while zooming', () => {
+    const currentPixelsPerHour = 240
+    const nextPixelsPerHour = 7200
+    const scrollLeftPx = 440
+    const viewportOffsetPx = 280
+    const result = getAnchoredHorizontalTimelineScrollLeft({
+      scrollLeftPx,
+      viewportOffsetPx,
+      currentPixelsPerHour,
+      nextPixelsPerHour,
+      contentWidthPx: 24 * nextPixelsPerHour,
+      viewportWidthPx: 800
+    })
+
+    const hourBefore = (scrollLeftPx + viewportOffsetPx) / currentPixelsPerHour
+    const hourAfter = (result + viewportOffsetPx) / nextPixelsPerHour
+    expect(hourAfter).toBeCloseTo(hourBefore)
+  })
+
+  it('clamps an anchored zoom at the beginning and end of the day', () => {
+    const common = {
+      currentPixelsPerHour: 240,
+      nextPixelsPerHour: 7200,
+      contentWidthPx: 24 * 7200,
+      viewportWidthPx: 800
+    }
+
+    expect(
+      getAnchoredHorizontalTimelineScrollLeft({
+        ...common,
+        scrollLeftPx: 0,
+        viewportOffsetPx: 0
+      })
+    ).toBe(0)
+    expect(
+      getAnchoredHorizontalTimelineScrollLeft({
+        ...common,
+        scrollLeftPx: 24 * 240 - common.viewportWidthPx,
+        viewportOffsetPx: common.viewportWidthPx
+      })
+    ).toBe(common.contentWidthPx - common.viewportWidthPx)
   })
 })

@@ -1,58 +1,67 @@
 # 时间管理器
 
-一款面向个人效率场景的 Windows 桌面应用，将日程、任务与实际使用时间放在同一工作流中。应用通过活动窗口追踪生成时间记录，再结合统计、报告和 AI 能力，帮助用户复盘一天的投入。
+> 一款面向 Windows 的 AI 辅助桌面时间管理工具：把日程规划、任务专注、实际时间追踪与复盘报告放进同一个闭环。
 
-> 个人作品 / Electron 桌面应用。数据默认保存在本机，AI 功能需由用户自行配置供应商。
+[![Windows CI](https://github.com/yi-san-spce/time-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/yi-san-spce/time-manager/actions/workflows/ci.yml)
+[![Platform](https://img.shields.io/badge/platform-Windows-0078D4?logo=windows&logoColor=white)](#下载与安装)
+[![Electron](https://img.shields.io/badge/Electron-42-47848F?logo=electron&logoColor=white)](https://www.electronjs.org/)
+[![License](https://img.shields.io/badge/license-MIT-4CAF50.svg)](LICENSE)
 
-## 产品亮点
+## 它解决什么问题？
 
-- **从计划到复盘的闭环**：支持单次与重复日程、任务与子任务、分类/标签、到点提醒，以及番茄钟。
-- **低打扰自动追踪**：定时采样活动窗口，按应用、窗口标题和可识别的站点标签聚合为时间片段；也支持手动补录、关联任务、合并和删除记录。
-- **更可读的追踪页**：总览按应用展示稳定颜色、片段数量和耗时比例；时间线以本地时区的单日 00:00–24:00 展示，可切换日期并处理跨日、重叠和短时记录。
-- **从记录到洞察**：提供日/周/月统计、分类分布、Top 应用/站点/窗口标题，以及日/周报生成与 Markdown、PDF 导出。
-- **AI 辅助而非替代判断**：可配置 Claude 或 OpenAI，生成活动/报告总结，并提供带人工确认的对话式操作入口。
-- **桌面效率体验**：提供悬浮信息窗与悬浮 AI 助手，方便快速查看当前上下文、番茄钟和随心记。
-
-## 技术架构
+很多时间管理工具只能帮你计划，或者只能帮你统计。这个项目希望把两者连起来：先安排要做的事，开始专注时关联任务或日程，应用在后台记录真实投入，最后用统计与报告复盘计划和现实之间的差距。
 
 ```text
-React + TypeScript 渲染层
-  └─ TanStack Query 管理查询与自动追踪后的缓存失效
-        ↕ 受限、类型化的 preload IPC
-Electron 主进程
-  ├─ 日程 / 任务 / 报告 / AI IPC 与 Zod 输入校验
-  ├─ 活动窗口采样、时间片段聚合、休眠/锁屏/退出时落盘
-  ├─ Claude / OpenAI Provider 适配层与系统加密的 API Key 存储
-  └─ better-sqlite3 本地数据库（WAL + 版本迁移）
+日程规划 → 任务拆分 → 番茄专注 → 自动追踪 → 统计分析 → AI 辅助复盘
 ```
 
-项目基于 `electron-vite` 构建，使用 Electron 主/渲染进程分层。数据访问集中在 Repository 层，业务能力（追踪、提醒、报告、悬浮窗等）由主进程服务承载；渲染层仅通过 preload 暴露的 API 调用，未开启 Node Integration。
+## 核心功能
 
-## 隐私与外部跳转
+| 场景 | 能力 |
+| --- | --- |
+| 规划 | 单次/重复日程、提醒、分类与优先级；任务、子任务、标签和日程关联。 |
+| 执行 | 番茄钟可关联日程或任务；悬浮窗可直接选择目标并开始专注。 |
+| 记录 | Windows 活动窗口自动追踪；支持手动补录、关联任务/日程、合并和删除记录。 |
+| 查看 | 应用总览、单日横向时间线、日期切换、拖拽平移、分钟级缩放，以及短记录和重叠记录的可读布局。 |
+| 复盘 | 日/周/月及自定义区间统计，分类分布、Top 应用/网站/窗口标题；日报、周报和按需报告可导出 Markdown 或 PDF。 |
+| AI | 可显式配置 Claude 或 OpenAI，用于活动总结、报告总结和带确认步骤的对话式操作。未配置 AI 时，日程、任务、追踪和统计仍可独立使用。 |
+| 桌面体验 | 悬浮 AI 助手、悬浮日程/任务/番茄钟小窗；随心记与任务详情跨窗口同步。 |
 
-- 日程、任务和时间记录默认写入 Electron 用户数据目录下的本地 SQLite 数据库；API Key 使用 Electron `safeStorage` 加密保存。
-- 自动追踪读取的是活动应用与窗口标题。**不会采集浏览器的精确 URL**；站点信息仅由浏览器标题启发式提取，用于粗粒度统计，可能为空或不完全准确。
-- 只有记录中可确认的完整 DNS 主机名才显示“打开网站”。渲染层只传主机名，主进程重新校验后固定构造 `https://<host>` 并交给系统浏览器打开；协议、路径、端口、IP、裸名称和不合法标签均会被拒绝。
-- 因此该操作只能打开合法域名的主页，不能恢复原始页面；历史记录或无法确认的站点标签只作文本展示，不会猜测或回填 URL。
-- AI 调用需要用户显式配置并启用供应商；调用时会将相关功能所需的数据发送至所选服务商。
+## 下载与安装
 
-## 本地运行
+前往 [GitHub Releases](https://github.com/yi-san-spce/time-manager/releases/latest) 下载 `TimeManager-*-win-x64.zip`。
 
-环境要求：Node.js `20.19+`、`22.12+` 或 `24+`；当前桌面追踪实现面向 Windows 活动窗口能力。
+当前首版提供 **Windows x64 免安装应用包**：
+
+1. 解压下载的 ZIP，运行其中的 `TimeManager.exe`。
+2. 首次启动后，数据会在 Electron 的用户数据目录中自动初始化为本地 SQLite 数据库。
+3. 应用默认使用本地数据；仅当你主动在设置页启用 AI 供应商时，才会发生对应的外部 AI 请求。
+
+> 应用包尚未进行商业代码签名，因此 Windows 可能提示“未知发布者”。请仅从本仓库的 Release 页面获取应用包；正式对外分发前建议配置代码签名证书。
+
+## 本地开发
+
+### 环境要求
+
+- Windows 10/11 x64（活动窗口追踪依赖 Windows 能力）
+- Node.js `20.19+`、`22.12+` 或 `24+`
+- npm
 
 ```bash
-npm install
+git clone https://github.com/yi-san-spce/time-manager.git
+cd time-manager
+npm ci
 npm run dev
 ```
 
-项目使用 `better-sqlite3` 原生模块。若安装阶段的原生模块重建失败，可执行：
+项目使用 `better-sqlite3` 原生模块。若安装过程中原生模块重建失败，可执行：
 
 ```bash
 npm install --ignore-scripts
 npx electron-rebuild -w better-sqlite3
 ```
 
-## 验证与构建
+### 质量检查
 
 ```bash
 npm run typecheck
@@ -61,24 +70,78 @@ npm test
 npm run build
 ```
 
-仓库中的 Windows CI 使用 Node.js 22 依次执行上述类型检查、静态检查、Vitest 测试和生产构建。
+GitHub Actions 会在 Windows + Node.js 22 环境中执行以上检查。
 
-## 面试中可展开的工程点
+### 构建安装包
 
-- **桌面端进程边界**：以 `contextIsolation`、preload 类型接口和主进程参数校验隔离渲染层与系统能力。
-- **时间追踪可靠性**：将窗口采样聚合为连续时间段；窗口切换、长时间持续活跃、锁屏/休眠与应用退出时均会结算片段，减少记录丢失。
-- **时间轴布局算法**：采用半开区间裁切到单日范围，对重叠片段进行分栏分配；短记录采用紧凑展示，跨午夜记录仅显示当天可见部分。
-- **前端数据一致性**：自动追踪事件触发追踪记录、统计和活动详情查询同时失效，避免实时数据更新后多个视图不一致。
-- **最小权限外部跳转**：将“打开网站”限制为主进程构造的 HTTPS 域名主页，避免渲染层把任意 URL 或协议交给系统 Shell。
-- **可验证性**：核心逻辑包含 Vitest 覆盖，例如时间片段聚合、域名校验、活动详情聚合和时间轴布局边界。
+```bash
+# 生成用于 GitHub Release 的 Windows x64 免安装应用包
+npm run package:zip
+
+# 只生成可直接启动的解压目录，便于本机冒烟测试
+npm run package:dir
+
+# 网络可用时生成带快捷方式与卸载程序的 NSIS 安装器
+npm run package:win
+```
+
+产物位于 `release/<版本号>/`。打包流程会清理旧的构建输出、重新生成应用图标、构建 Electron 产物，并将原生依赖以 `asarUnpack` 方式保留在应用包外，确保 SQLite 与活动窗口追踪模块可以加载。
+
+## 技术架构
+
+| 层级 | 技术与职责 |
+| --- | --- |
+| 渲染进程 | React 18、TypeScript、TanStack Query、CSS Modules；负责日历、任务、追踪、统计、报告和悬浮窗界面。 |
+| 进程边界 | Electron `contextIsolation`、关闭 `nodeIntegration`、类型化 preload API；渲染层不直接访问 Node/Electron 系统能力。 |
+| 主进程 | Electron、Zod IPC 校验、提醒调度、番茄钟消息总线、活动窗口采样、报告导出和 AI Provider 适配。 |
+| 数据层 | better-sqlite3、本地 SQLite、WAL 与版本迁移；Repository 层集中管理持久化。 |
+| 验证 | Vitest 单元测试、TypeScript 类型检查、ESLint、Windows CI 与 electron-vite 生产构建。 |
+
+```text
+React Renderer
+      │ 类型化 preload IPC
+      ▼
+Electron Main ── 服务层（追踪 / 提醒 / 报告 / AI / 悬浮窗）
+      │
+      ▼
+Repository ── SQLite（本地用户数据目录）
+```
+
+## 隐私与安全
+
+- 日程、任务和时间记录默认写入本地 SQLite 数据库；API Key 使用 Electron `safeStorage` 加密后保存。
+- 自动追踪读取的是活动应用名和窗口标题。浏览器站点信息只从窗口标题做启发式标签提取，**不会获取精确 URL**。
+- 只有标签是严格合法的完整主机名时，才会出现“打开主页”。渲染层只能传主机名，主进程会再次校验并固定构造 `https://<host>`；协议、路径、端口、IP 和无效标签都会被拒绝。
+- AI 功能必须由用户主动配置并启用。调用时会向所选供应商发送该功能所需的数据，请自行评估供应商政策与网络环境。
+- 卸载应用通常不会自动删除用户数据目录。需要清空数据时，请先在应用关闭后手动备份或删除其中的 `data.sqlite3`。
 
 ## 已知边界
 
-- 不安装浏览器扩展，也不读取精确 URL；浏览器窗口标题中的站点标签仅用于辅助统计。
-- 仅在站点标签为严格合法的完整域名时提供主页跳转，无法从历史记录恢复或推断原始页面。
-- 手动补录限定在当前选中的单日内，开始时间与结束时间必须在同一天且结束晚于开始。
-- AI 功能依赖用户自己的服务商配置与网络可用性；未配置时，日程、任务、追踪和统计等本地能力仍可使用。
+- 活动窗口自动追踪目前针对 Windows 实现；本仓库不承诺 macOS/Linux 上的同等能力。
+- 不安装浏览器扩展，因此不能恢复原始网页地址，只能在可确认完整域名时打开网站主页。
+- 手动补录限定为当前选中日期内的单日记录，结束时间必须晚于开始时间。
+- AI 能力依赖用户自有的供应商配置和网络可用性；它是辅助决策工具，不替代用户确认。
+
+## 面试可展开的工程点
+
+- **可靠的追踪落盘**：将窗口采样聚合成连续时间段，并在窗口切换、锁屏、休眠和应用退出时结算，减少记录丢失。
+- **可读的时间线布局**：采用半开区间裁切单日范围，真实重叠记录分行，跨午夜记录仅显示当天可见部分；缩放、拖拽和鼠标锚点保持一致。
+- **跨窗口状态一致性**：日程、任务、番茄钟与随心记在主窗口和悬浮窗之间通过受限 IPC 同步。
+- **最小权限外链**：站点跳转只接受经主进程二次校验的 DNS 主机名，避免把任意 URL 或协议交给系统 Shell。
+- **可验证性**：核心聚合、时间轴、域名校验、追踪服务和 IPC 输入都覆盖了自动化测试，并在 Windows CI 中持续验证。
+
+## 项目结构
+
+```text
+src/
+├─ main/                 # Electron 主进程、IPC、服务、SQLite 仓库和迁移
+├─ preload/              # 受限且类型化的 IPC 桥接层
+├─ renderer/src/         # React 界面、设计系统与功能模块
+└─ shared/               # 跨进程数据模型和 IPC 类型
+scripts/                 # 打包清理与图标生成脚本
+.github/workflows/       # Windows CI
+```
 
 ## License
 
-MIT
+[MIT](LICENSE)

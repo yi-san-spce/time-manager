@@ -3,6 +3,7 @@ import type {
   CreateTagInput,
   CreateTaskInput,
   ReorderSubtasksInput,
+  SetTaskQuickNoteInput,
   SetTaskTagsInput,
   UpdateSubtaskInput,
   UpdateTaskInput
@@ -14,7 +15,9 @@ export const taskApi = {
   create: (input: CreateTaskInput) => window.api.task.create(input),
   update: (input: UpdateTaskInput) => window.api.task.update(input),
   delete: (id: string) => window.api.task.delete(id),
-  setTags: (input: SetTaskTagsInput) => window.api.task.setTags(input)
+  setTags: (input: SetTaskTagsInput) => window.api.task.setTags(input),
+  getQuickNote: (taskId: string) => window.api.task.getQuickNote(taskId),
+  setQuickNote: (input: SetTaskQuickNoteInput) => window.api.task.setQuickNote(input)
 }
 
 export const subtaskApi = {

@@ -72,8 +72,8 @@ export function closeFloatingAssistant(): void {
 // ── 悬浮信息小窗（需求6：当前日程/任务/番茄/随心记）───────────────────────────
 
 let widgetWindow: BrowserWindow | null = null
-const WIDGET_WIDTH = 320
-const WIDGET_HEIGHT = 620
+const WIDGET_WIDTH = 340
+const WIDGET_HEIGHT = 560
 
 export function getFloatingWidgetWindow(): BrowserWindow | null {
   return widgetWindow
@@ -96,10 +96,14 @@ export function openFloatingWidget(onReady?: (win: BrowserWindow) => void): void
     height: WIDGET_HEIGHT,
     x,
     y,
-    minWidth: 280,
-    minHeight: 420,
+    minWidth: 300,
+    minHeight: 360,
     show: false,
     frame: false,
+    // `backgroundColor: transparent` alone still leaves an opaque native surface on Windows.
+    // The widget's rounded CSS shell needs a genuinely transparent BrowserWindow behind it.
+    transparent: true,
+    hasShadow: false,
     resizable: true,
     maximizable: false,
     fullscreenable: false,

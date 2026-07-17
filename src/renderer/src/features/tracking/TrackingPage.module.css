@@ -529,3 +529,319 @@
     right: 1px;
   }
 }
+
+/* 横向时间线：时间沿 X 轴按实际比例铺开，缩放只改变每小时的像素密度。 */
+.timelinePanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--glass-surface-border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--glass-surface-bg) 84%, transparent);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+}
+
+.timelineToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: 0 var(--space-1);
+}
+
+.timelineToolbarTitle {
+  color: var(--color-text-primary);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.timelineToolbarHint {
+  margin: 3px 0 0;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.timelineZoomControls {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.timelineZoomRange {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.timelineZoomRange input {
+  width: clamp(112px, 15vw, 184px);
+  min-width: 72px;
+  margin: 0;
+  accent-color: var(--stage-track);
+  cursor: pointer;
+}
+
+.timelineZoomValue {
+  width: 58px;
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.timelineViewport {
+  display: block;
+  height: auto;
+  max-height: clamp(260px, 50vh, 580px);
+  min-width: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  cursor: grab;
+  touch-action: pan-y;
+  border: 1px solid var(--glass-surface-border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--glass-surface-bg-strong) 84%, transparent);
+  scrollbar-gutter: stable both-edges;
+}
+
+.timelineViewportDragging,
+.timelineViewportDragging * {
+  cursor: grabbing !important;
+  user-select: none;
+}
+
+.timelineSurface {
+  --timeline-row-gap: 10px;
+
+  position: relative;
+  min-width: 100%;
+}
+
+.timelineRuler {
+  position: sticky;
+  top: 0;
+  z-index: 7;
+  height: 34px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--glass-surface-border);
+  background-color: color-mix(in srgb, var(--glass-surface-bg-strong) 92%, var(--stage-track-soft));
+  background-image: repeating-linear-gradient(
+    to right,
+    transparent 0,
+    transparent calc(var(--timeline-hour-width) - 1px),
+    color-mix(in srgb, var(--glass-surface-border) 90%, transparent) calc(var(--timeline-hour-width) - 1px),
+    color-mix(in srgb, var(--glass-surface-border) 90%, transparent) var(--timeline-hour-width)
+  );
+  box-shadow: 0 4px 10px color-mix(in srgb, var(--color-bg-base) 16%, transparent);
+}
+
+/* At higher scales, show the minute divisions the zoom control is calibrated to. */
+.timelineSurface[data-minute-grid='true'] .timelineRuler {
+  background-image:
+    repeating-linear-gradient(
+      to right,
+      transparent 0,
+      transparent calc(var(--timeline-minute-width) - 1px),
+      color-mix(in srgb, var(--glass-surface-border) 38%, transparent) calc(var(--timeline-minute-width) - 1px),
+      color-mix(in srgb, var(--glass-surface-border) 38%, transparent) var(--timeline-minute-width)
+    ),
+    repeating-linear-gradient(
+      to right,
+      transparent 0,
+      transparent calc(var(--timeline-hour-width) - 1px),
+      color-mix(in srgb, var(--glass-surface-border) 90%, transparent) calc(var(--timeline-hour-width) - 1px),
+      color-mix(in srgb, var(--glass-surface-border) 90%, transparent) var(--timeline-hour-width)
+    );
+}
+
+.timelineHour {
+  top: 50%;
+  right: auto;
+  width: auto;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-align: left;
+  transform: translate(-50%, -50%);
+  user-select: none;
+}
+
+.timelineHour:first-child {
+  transform: translateY(-50%);
+}
+
+.timelineHour:last-child {
+  transform: translate(-100%, -50%);
+}
+
+.timelineCanvas {
+  width: 100%;
+  min-width: 0;
+  min-height: 172px;
+  isolation: isolate;
+  background-image:
+    repeating-linear-gradient(
+      to right,
+      transparent 0,
+      transparent calc(var(--timeline-hour-width) - 1px),
+      color-mix(in srgb, var(--glass-surface-border) 74%, transparent) calc(var(--timeline-hour-width) - 1px),
+      color-mix(in srgb, var(--glass-surface-border) 74%, transparent) var(--timeline-hour-width)
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent calc(var(--timeline-row-height) + var(--timeline-row-gap) - 1px),
+      color-mix(in srgb, var(--glass-surface-border) 44%, transparent) calc(var(--timeline-row-height) + var(--timeline-row-gap) - 1px),
+      color-mix(in srgb, var(--glass-surface-border) 44%, transparent) calc(var(--timeline-row-height) + var(--timeline-row-gap))
+    ),
+    linear-gradient(90deg, color-mix(in srgb, var(--stage-track-soft) 34%, transparent), transparent 22%, transparent 78%, color-mix(in srgb, var(--color-accent-soft) 22%, transparent));
+}
+
+.timelineSurface[data-minute-grid='true'] .timelineCanvas {
+  background-image:
+    repeating-linear-gradient(
+      to right,
+      transparent 0,
+      transparent calc(var(--timeline-minute-width) - 1px),
+      color-mix(in srgb, var(--glass-surface-border) 24%, transparent) calc(var(--timeline-minute-width) - 1px),
+      color-mix(in srgb, var(--glass-surface-border) 24%, transparent) var(--timeline-minute-width)
+    ),
+    repeating-linear-gradient(
+      to right,
+      transparent 0,
+      transparent calc(var(--timeline-hour-width) - 1px),
+      color-mix(in srgb, var(--glass-surface-border) 74%, transparent) calc(var(--timeline-hour-width) - 1px),
+      color-mix(in srgb, var(--glass-surface-border) 74%, transparent) var(--timeline-hour-width)
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent calc(var(--timeline-row-height) + var(--timeline-row-gap) - 1px),
+      color-mix(in srgb, var(--glass-surface-border) 44%, transparent) calc(var(--timeline-row-height) + var(--timeline-row-gap) - 1px),
+      color-mix(in srgb, var(--glass-surface-border) 44%, transparent) calc(var(--timeline-row-height) + var(--timeline-row-gap))
+    ),
+    linear-gradient(90deg, color-mix(in srgb, var(--stage-track-soft) 34%, transparent), transparent 22%, transparent 78%, color-mix(in srgb, var(--color-accent-soft) 22%, transparent));
+}
+
+.timelineCanvas::after {
+  background: linear-gradient(180deg, var(--glass-highlight), transparent 34px);
+  opacity: 0.28;
+}
+
+.timelineCanvas .timelineBlock {
+  position: absolute;
+  z-index: 1;
+  padding: 7px 8px;
+  border-left-width: 3px;
+  border-radius: 10px;
+}
+
+.timelineBlock:hover {
+  z-index: 5;
+  transform: translateY(-2px);
+}
+
+.timelineBlockMarker,
+.timelineBlockCompact {
+  padding: 0;
+}
+
+.timelineBlockMarker {
+  min-width: 3px;
+  border-left-width: 3px;
+  border-radius: 4px;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--block-accent) 24%, transparent), 0 3px 9px color-mix(in srgb, var(--block-accent) 18%, transparent);
+}
+
+.timelineBlockCompact {
+  min-width: 34px;
+  justify-content: center;
+  padding: 0 6px;
+  border-radius: 6px;
+}
+
+.timelineBlockCompact .timelineBlockMeta,
+.timelineBlockCompact .timelineBlockActions,
+.timelineBlockMarker .timelineBlockHeader,
+.timelineBlockMarker .timelineBlockMeta,
+.timelineBlockMarker .timelineBlockActions {
+  display: none;
+}
+
+.timelineBlockCompact .timelineBlockHeader {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timelineBlockHeader {
+  font-size: 12px;
+}
+
+.timelineBlockMeta {
+  margin-top: 4px;
+  font-size: 11px;
+}
+
+.timelineEmpty {
+  min-width: 100%;
+}
+
+@media (max-width: 760px) {
+  .timelinePanel {
+    padding: var(--space-2);
+    border-radius: var(--radius-md);
+  }
+
+  .timelineToolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .timelineZoomControls {
+    justify-content: flex-end;
+  }
+
+  .timelineZoomRange {
+    flex: 1;
+  }
+
+  .timelineZoomRange input {
+    width: 100%;
+  }
+
+  .timelineViewport {
+    height: auto;
+    max-height: clamp(240px, 48vh, 480px);
+    border-radius: var(--radius-sm);
+  }
+}
+
+@media (max-width: 480px) {
+  .timelineZoomControls {
+    gap: 4px;
+  }
+
+  .timelineZoomRange > span {
+    display: none;
+  }
+
+  .timelineZoomValue {
+    width: 38px;
+  }
+}

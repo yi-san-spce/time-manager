@@ -10,16 +10,18 @@ import type {
   CreateTagInput,
   CreateTaskInput,
   ReorderSubtasksInput,
+  SetTaskQuickNoteInput,
   SetTaskTagsInput,
   UpdateSubtaskInput,
   UpdateTaskInput
 } from '@shared/types/ipc'
-import type { Subtask, Tag, Task, TaskDetail, TaskListItem } from '@shared/types/models'
+import type { Subtask, Tag, Task, TaskDetail, TaskListItem, TaskQuickNote } from '@shared/types/models'
 import { subtaskApi, tagApi, taskApi } from './api'
 
 const TASKS_KEY = ['tasks']
 const TAGS_KEY = ['tags']
 const taskDetailKey = (id: string): (string | undefined)[] => ['task', id]
+export const taskQuickNoteKey = (id: string) => ['task', id, 'quick-note'] as const
 
 export function useTasks(): UseQueryResult<TaskListItem[]> {
   return useQuery({ queryKey: TASKS_KEY, queryFn: taskApi.list })
@@ -31,6 +33,20 @@ export function useTaskDetail(id: string | null): UseQueryResult<TaskDetail | nu
     queryFn: () => (id ? taskApi.get(id) : Promise.resolve(null)),
     enabled: id !== null
   })
+}
+
+/** A free-form task note that is independent from its Markdown description. */
+export function useTaskQuickNote(id: string | null): UseQueryResult<TaskQuickNote | null> {
+  return useQuery({
+    queryKey: taskQuickNoteKey(id ?? ''),
+    queryFn: () => (id ? taskApi.getQuickNote(id) : Promise.resolve(null)),
+    enabled: id !== null
+  })
+}
+
+/** Saving is intentionally cache-neutral; the editor commits the newest response itself. */
+export function useSetTaskQuickNote(): UseMutationResult<TaskQuickNote, Error, SetTaskQuickNoteInput> {
+  return useMutation({ mutationFn: (input: SetTaskQuickNoteInput) => taskApi.setQuickNote(input) })
 }
 
 export function useCreateTask(): UseMutationResult<Task, Error, CreateTaskInput> {

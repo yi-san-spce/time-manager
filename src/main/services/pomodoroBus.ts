@@ -1,18 +1,58 @@
-import type { BrowserWindow } from 'electron'
+import type { BrowserWindow, WebContents } from 'electron'
 import { ipcMain } from 'electron'
 import { IPC } from '@shared/types/ipc'
-import type { PomodoroCommand, PomodoroSnapshot } from '@shared/types/ipc'
+import type {
+  PomodoroCommand,
+  PomodoroDispatchCommand,
+  PomodoroResolvedStartCommand,
+  PomodoroSnapshot
+} from '@shared/types/ipc'
 import { pomodoroSnapshotSchema, pomodoroCommandSchema } from '../ipc/schemas'
+import { getTask } from '../db/repositories/taskRepo'
+import { getSchedule } from '../db/repositories/scheduleRepo'
 
 /**
- * 番茄钟跨窗中继（需求6）。主窗口渲染进程是唯一计时权威：
- *   - 主窗口 publishState → 缓存最新快照 + 转发给悬浮窗镜像
- *   - 悬浮窗 sendCommand → 转发给主窗口执行（pause/resume/stop/skip）
- * 这样两个渲染进程不各自计时，避免重复落库与状态漂移。
+ * The main-window renderer owns the timer. The main process only relays snapshots and commands,
+ * while resolving floating-widget start requests against database records before they reach it.
  */
 let latestSnapshot: PomodoroSnapshot | null = null
 let getMainWindow: () => BrowserWindow | null = () => null
 let getWidgetWindow: () => BrowserWindow | null = () => null
+
+function isExpectedSender(sender: WebContents, getWindow: () => BrowserWindow | null): boolean {
+  const window = getWindow()
+  return Boolean(window && !window.isDestroyed() && sender === window.webContents)
+}
+
+/** Validates target IDs and turns an untrusted start request into a title-bearing timer command. */
+export function resolvePomodoroCommand(command: PomodoroCommand): PomodoroDispatchCommand {
+  if (typeof command === 'string') return command
+
+  const task = command.taskId ? getTask(command.taskId) : null
+  if (command.taskId && !task) {
+    throw new Error(`Task not found: ${command.taskId}`)
+  }
+  if (task && (task.status === 'done' || task.status === 'cancelled')) {
+    throw new Error(`Task is not focusable: ${task.id}`)
+  }
+
+  const schedule = command.scheduleId ? getSchedule(command.scheduleId) : null
+  if (command.scheduleId && !schedule) {
+    throw new Error(`Schedule not found: ${command.scheduleId}`)
+  }
+  if (schedule && schedule.status !== 'planned') {
+    throw new Error(`Schedule is not focusable: ${schedule.id}`)
+  }
+
+  const labels = [task?.title, schedule?.title].filter((label): label is string => Boolean(label))
+  const resolved: PomodoroResolvedStartCommand = {
+    type: 'start',
+    taskId: task?.id ?? null,
+    scheduleId: schedule?.id ?? null,
+    linkLabel: labels.join(' · ')
+  }
+  return resolved
+}
 
 export function initPomodoroBus(
   mainWindowGetter: () => BrowserWindow | null,
@@ -21,7 +61,8 @@ export function initPomodoroBus(
   getMainWindow = mainWindowGetter
   getWidgetWindow = widgetWindowGetter
 
-  ipcMain.on(IPC.pomodoroPublishState, (_event, raw) => {
+  ipcMain.on(IPC.pomodoroPublishState, (event, raw) => {
+    if (!isExpectedSender(event.sender, getMainWindow)) return
     const snapshot = pomodoroSnapshotSchema.parse(raw)
     latestSnapshot = snapshot
     const widget = getWidgetWindow()
@@ -30,8 +71,9 @@ export function initPomodoroBus(
     }
   })
 
-  ipcMain.on(IPC.pomodoroSendCommand, (_event, raw) => {
-    const command: PomodoroCommand = pomodoroCommandSchema.parse(raw)
+  ipcMain.on(IPC.pomodoroSendCommand, (event, raw) => {
+    if (!isExpectedSender(event.sender, getWidgetWindow)) return
+    const command = resolvePomodoroCommand(pomodoroCommandSchema.parse(raw))
     const main = getMainWindow()
     if (main && !main.isDestroyed()) {
       main.webContents.send(IPC.pomodoroCommandReceived, command)
@@ -39,7 +81,7 @@ export function initPomodoroBus(
   })
 }
 
-/** 悬浮窗刚打开时，用缓存快照立即补一帧，避免空等下一次 publish。 */
+/** The widget receives the latest state immediately when it opens instead of waiting for a tick. */
 export function pushLatestSnapshotTo(win: BrowserWindow): void {
   if (latestSnapshot && !win.isDestroyed()) {
     win.webContents.send(IPC.pomodoroStateChanged, latestSnapshot)

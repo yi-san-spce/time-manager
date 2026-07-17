@@ -20,11 +20,13 @@ import type {
   PomodoroConfig,
   PomodoroSnapshot,
   PomodoroCommand,
+  PomodoroDispatchCommand,
   ReminderFirePayload,
   ReorderSubtasksInput,
   SaveAIProviderConfigInput,
   SetScheduleExceptionInput,
   SetTaskTagsInput,
+  SetTaskQuickNoteInput,
   StatsQueryInput,
   ActivityDetailInput,
   SaveActivityNoteInput,
@@ -61,7 +63,14 @@ const api: TimeManagerApi = {
     delete: (id: string) => ipcRenderer.invoke(IPC.taskDelete, id),
     list: () => ipcRenderer.invoke(IPC.taskList),
     get: (id: string) => ipcRenderer.invoke(IPC.taskGet, id),
-    setTags: (input: SetTaskTagsInput) => ipcRenderer.invoke(IPC.taskSetTags, input)
+    setTags: (input: SetTaskTagsInput) => ipcRenderer.invoke(IPC.taskSetTags, input),
+    getQuickNote: (taskId: string) => ipcRenderer.invoke(IPC.taskQuickNoteGet, taskId),
+    setQuickNote: (input: SetTaskQuickNoteInput) => ipcRenderer.invoke(IPC.taskQuickNoteSet, input),
+    onQuickNoteChanged: (callback: (taskId: string) => void) => {
+      const listener = (_event: unknown, taskId: string): void => callback(taskId)
+      ipcRenderer.on(IPC.eventTaskQuickNoteChanged, listener)
+      return () => ipcRenderer.removeListener(IPC.eventTaskQuickNoteChanged, listener)
+    }
   },
   subtask: {
     create: (input: CreateSubtaskInput) => ipcRenderer.invoke(IPC.subtaskCreate, input),
@@ -173,6 +182,11 @@ const api: TimeManagerApi = {
     open: () => ipcRenderer.invoke(IPC.floatingWidgetOpen),
     close: () => ipcRenderer.invoke(IPC.floatingWidgetClose),
     getContext: () => ipcRenderer.invoke(IPC.widgetGetContext),
+    onContextChanged: (callback: () => void) => {
+      const listener = (): void => callback()
+      ipcRenderer.on(IPC.eventWidgetContextChanged, listener)
+      return () => ipcRenderer.removeListener(IPC.eventWidgetContextChanged, listener)
+    },
     getQuickNote: () => ipcRenderer.invoke(IPC.quickNoteGet),
     setQuickNote: (text: string) => ipcRenderer.invoke(IPC.quickNoteSet, text)
   },
@@ -184,8 +198,8 @@ const api: TimeManagerApi = {
       return () => ipcRenderer.removeListener(IPC.pomodoroStateChanged, listener)
     },
     sendCommand: (command: PomodoroCommand) => ipcRenderer.send(IPC.pomodoroSendCommand, command),
-    onCommand: (callback: (command: PomodoroCommand) => void) => {
-      const listener = (_event: unknown, command: PomodoroCommand): void => callback(command)
+    onCommand: (callback: (command: PomodoroDispatchCommand) => void) => {
+      const listener = (_event: unknown, command: PomodoroDispatchCommand): void => callback(command)
       ipcRenderer.on(IPC.pomodoroCommandReceived, listener)
       return () => ipcRenderer.removeListener(IPC.pomodoroCommandReceived, listener)
     }

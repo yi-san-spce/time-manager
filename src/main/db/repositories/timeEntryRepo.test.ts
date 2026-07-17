@@ -4,11 +4,18 @@ const mocks = vi.hoisted(() => ({ getDb: vi.fn() }))
 
 vi.mock('../connection', () => ({ getDb: mocks.getDb }))
 
-import { aggregateByApp, aggregateByDomain, createAutoTimeEntry, getAppActivityDetail } from './timeEntryRepo'
+import {
+  aggregateByApp,
+  aggregateByDomain,
+  createAutoTimeEntry,
+  createManualTimeEntry,
+  getAppActivityDetail
+} from './timeEntryRepo'
 
 interface TimeEntryRow {
   id: string
   task_id: string | null
+  schedule_id: string | null
   start_time: number
   end_time: number
   source: string
@@ -24,6 +31,7 @@ function makeEntryRow(overrides: Partial<TimeEntryRow> = {}): TimeEntryRow {
   return {
     id: 'entry-1',
     task_id: null,
+    schedule_id: null,
     start_time: 0,
     end_time: 60_000,
     source: 'auto',
@@ -99,6 +107,7 @@ describe('time-entry domain aggregation and activity details', () => {
 
     expect(insertRun).toHaveBeenCalledWith(
       expect.any(String),
+      null,
       0,
       120_000,
       'chrome.exe',
@@ -111,6 +120,43 @@ describe('time-entry domain aggregation and activity details', () => {
     expect(getAppActivityDetail('chrome.exe', 0, 120_000).targets).toEqual([
       { key: 'github.com', minutes: 2, count: 1, openHost: 'github.com' }
     ])
+  })
+
+  it('persists the selected schedule on manually created time entries', () => {
+    const row = makeEntryRow({
+      task_id: 'task-1',
+      schedule_id: 'schedule-1',
+      source: 'manual',
+      app_name: null,
+      window_title: null,
+      domain: null,
+      note: 'Focused implementation'
+    })
+    const insertRun = installDbFixture({
+      domainBuckets: [],
+      activityRows: {},
+      segments: {},
+      entryById: row
+    })
+
+    createManualTimeEntry({
+      taskId: 'task-1',
+      scheduleId: 'schedule-1',
+      startTime: 0,
+      endTime: 60_000,
+      note: 'Focused implementation'
+    })
+
+    expect(insertRun).toHaveBeenCalledWith(
+      expect.any(String),
+      'task-1',
+      'schedule-1',
+      0,
+      60_000,
+      'Focused implementation',
+      expect.any(Number),
+      expect.any(Number)
+    )
   })
 
   it('keeps historical labels visible but never infers an open host from them', () => {

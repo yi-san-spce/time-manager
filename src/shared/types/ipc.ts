@@ -13,6 +13,7 @@ import type {
   Task,
   TaskDetail,
   TaskListItem,
+  TaskQuickNote,
   TaskStatus,
   TimeEntry,
   TimeStatBucket,
@@ -184,6 +185,7 @@ export interface SetScheduleExceptionInput {
 
 export interface CreateManualTimeEntryInput {
   taskId?: string | null
+  scheduleId?: string | null
   startTime: number
   endTime: number
   note?: string | null
@@ -192,6 +194,7 @@ export interface CreateManualTimeEntryInput {
 export interface UpdateTimeEntryInput {
   id: string
   taskId?: string | null
+  scheduleId?: string | null
   startTime?: number
   endTime?: number
   note?: string | null
@@ -200,11 +203,17 @@ export interface UpdateTimeEntryInput {
 export interface MergeTimeEntriesInput {
   ids: string[]
   taskId?: string | null
+  scheduleId?: string | null
 }
 
 export interface LinkTimeEntryToTaskInput {
   id: string
   taskId: string | null
+}
+
+export interface SetTaskQuickNoteInput {
+  taskId: string
+  text: string
 }
 
 export interface ListTimeEntriesInput {
@@ -237,24 +246,56 @@ export interface PomodoroSnapshot {
   linkLabel: string | null
   /** 是否已启动（link 非空） */
   active: boolean
+  /** Main-process-resolved focus targets, or null while idle. */
+  taskId: string | null
+  scheduleId: string | null
 }
 
 /** 悬浮小窗回传给主窗口计时器的控制命令（需求6）。 */
-export type PomodoroCommand = 'pause' | 'resume' | 'stop' | 'skip'
+export type PomodoroControlCommand = 'pause' | 'resume' | 'stop' | 'skip'
+
+/** An untrusted floating-widget request. Titles never cross this boundary. */
+export interface PomodoroStartCommand {
+  type: 'start'
+  taskId?: string | null
+  scheduleId?: string | null
+}
+
+export type PomodoroCommand = PomodoroControlCommand | PomodoroStartCommand
+
+/** The main process validates IDs and generates this label before forwarding the start command. */
+export interface PomodoroResolvedStartCommand {
+  type: 'start'
+  taskId: string | null
+  scheduleId: string | null
+  linkLabel: string
+}
+
+export type PomodoroDispatchCommand = PomodoroControlCommand | PomodoroResolvedStartCommand
 
 /** 悬浮小窗“当前上下文”卡片数据（需求6）：此刻命中的日程 + 其关联任务。 */
+export interface WidgetSchedule {
+  /** Parent schedule ID; recurrence instances retain their parent ID. */
+  id: string
+  title: string
+  startTime: number
+  endTime: number
+  status: ScheduleStatus
+}
+
+export interface WidgetFocusableTask {
+  id: string
+  title: string
+  status: TaskStatus
+  /** May be null: unlinked tasks may still be focused. */
+  scheduleId: string | null
+}
+
+/** Daily schedule occurrences and focusable tasks, supplied independently for the floating widget. */
 export interface WidgetContext {
-  schedule: {
-    id: string
-    title: string
-    startTime: number
-    endTime: number
-  } | null
-  tasks: Array<{
-    id: string
-    title: string
-    status: TaskStatus
-  }>
+  currentSchedule: WidgetSchedule | null
+  todaySchedules: WidgetSchedule[]
+  focusableTasks: WidgetFocusableTask[]
 }
 
 export interface UIConfig {
@@ -336,6 +377,8 @@ export const IPC = {
   taskDelete: 'task:delete',
   taskList: 'task:list',
   taskGet: 'task:get',
+  taskQuickNoteGet: 'task:quickNoteGet',
+  taskQuickNoteSet: 'task:quickNoteSet',
   subtaskCreate: 'subtask:create',
   subtaskUpdate: 'subtask:update',
   subtaskDelete: 'subtask:delete',
@@ -402,6 +445,8 @@ export const IPC = {
   pomodoroCommandReceived: 'pomodoro:commandReceived',
   eventEffectiveThemeChanged: 'event:effectiveThemeChanged',
   eventTimeEntryNew: 'event:timeEntry:new',
+  eventTaskQuickNoteChanged: 'event:taskQuickNoteChanged',
+  eventWidgetContextChanged: 'event:widgetContextChanged',
   eventReminderFire: 'event:reminder:fire'
 } as const
 
@@ -422,6 +467,11 @@ export interface TimeManagerApi {
     list(): Promise<TaskListItem[]>
     get(id: string): Promise<TaskDetail | null>
     setTags(input: SetTaskTagsInput): Promise<TaskDetail>
+    /** Shared free-form task note used by the task detail and floating widget. */
+    getQuickNote(taskId: string): Promise<TaskQuickNote | null>
+    setQuickNote(input: SetTaskQuickNoteInput): Promise<TaskQuickNote>
+    /** Fires after any window saves a task quick note; the note text is never broadcast. */
+    onQuickNoteChanged(callback: (taskId: string) => void): () => void
   }
   subtask: {
     create(input: CreateSubtaskInput): Promise<Subtask>
@@ -526,6 +576,8 @@ export interface TimeManagerApi {
     close(): Promise<void>
     /** 此刻命中的日程及其关联任务 */
     getContext(): Promise<WidgetContext>
+    /** Fires when task/schedule data changes and the widget context should be reloaded. */
+    onContextChanged(callback: () => void): () => void
     /** 随心记读取/保存（app_settings 持久化，重启仍在） */
     getQuickNote(): Promise<string>
     setQuickNote(text: string): Promise<void>
@@ -538,6 +590,6 @@ export interface TimeManagerApi {
     /** 悬浮窗向主窗口发送控制命令 */
     sendCommand(command: PomodoroCommand): void
     /** 主窗口订阅来自悬浮窗的命令；返回取消订阅 */
-    onCommand(callback: (command: PomodoroCommand) => void): () => void
+    onCommand(callback: (command: PomodoroDispatchCommand) => void): () => void
   }
 }

@@ -71,6 +71,52 @@
   color: var(--color-text-muted);
 }
 
+.quickNoteHeading {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-primary);
+}
+
+.quickNoteSaveState {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-muted);
+}
+
+.quickNoteSaveStatePending {
+  color: var(--color-text-secondary);
+}
+
+.quickNoteSaveStateError {
+  color: var(--color-danger);
+}
+
+.quickNoteArea {
+  min-height: 132px;
+}
+
+.quickNoteHint {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.quickNoteError {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 84px;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-danger) 45%, transparent);
+  border-radius: var(--radius-md);
+  background: var(--color-danger-soft);
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+}
+
 /* 子任务清单 */
 .progressHeader {
   display: flex;
